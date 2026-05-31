@@ -1,0 +1,260 @@
+import type { SubtitleSegment } from "@echoflow/protocol";
+import { createDexieHistoryPersistence } from "./db";
+
+export type SyncStatus = "local-only" | "pending" | "synced" | "failed";
+
+export interface HistorySessionError {
+  code: string;
+  message: string;
+  occurredAt: number;
+}
+
+export interface HistorySessionRecord {
+  id: string;
+  startedAt: number;
+  updatedAt: number;
+  sourceLanguage?: string;
+  targetLanguage?: string;
+  remoteSessionId?: string;
+  syncStatus: SyncStatus;
+  error?: HistorySessionError;
+}
+
+export type HistorySegmentRecord = SubtitleSegment;
+
+export type AppendableSubtitleSegment =
+  | SubtitleSegment
+  | (Omit<SubtitleSegment, "status"> & { status: "partial" });
+
+export interface CreateLocalSessionInput {
+  startedAt?: number;
+  sourceLanguage?: string;
+  targetLanguage?: string;
+  remoteSessionId?: string;
+  syncStatus?: SyncStatus;
+  now?: () => number;
+}
+
+export interface RecordSessionErrorInput {
+  code: string;
+  message: string;
+  occurredAt?: number;
+}
+
+export interface HistoryPersistence {
+  addSession(session: HistorySessionRecord): Promise<void>;
+  getSession(sessionId: string): Promise<HistorySessionRecord | undefined>;
+  listSessions(): Promise<HistorySessionRecord[]>;
+  updateSession(
+    sessionId: string,
+    changes: Partial<HistorySessionRecord>
+  ): Promise<void>;
+  putSegment(segment: HistorySegmentRecord): Promise<void>;
+  getSegments(sessionId: string): Promise<HistorySegmentRecord[]>;
+}
+
+export interface HistoryStore {
+  createLocalSession(
+    input?: CreateLocalSessionInput
+  ): Promise<HistorySessionRecord>;
+  listSessions(): Promise<HistorySessionRecord[]>;
+  getSession(sessionId: string): Promise<HistorySessionRecord | undefined>;
+  appendSegment(segment: AppendableSubtitleSegment): Promise<void>;
+  getSessionSegments(sessionId: string): Promise<HistorySegmentRecord[]>;
+  recordSessionError(
+    sessionId: string,
+    error: RecordSessionErrorInput
+  ): Promise<void>;
+  exportSessionAsText(sessionId: string): Promise<string>;
+  exportSessionAsJson(sessionId: string): Promise<string>;
+}
+
+export function createHistoryStore(
+  persistence: HistoryPersistence = createDexieHistoryPersistence()
+): HistoryStore {
+  return {
+    async createLocalSession(input = {}) {
+      const timestamp = input.startedAt ?? input.now?.() ?? Date.now();
+      const session: HistorySessionRecord = {
+        id: `local-${timestamp}`,
+        startedAt: timestamp,
+        updatedAt: timestamp,
+        syncStatus: input.syncStatus ?? "local-only"
+      };
+
+      if (input.sourceLanguage) {
+        session.sourceLanguage = input.sourceLanguage;
+      }
+
+      if (input.targetLanguage) {
+        session.targetLanguage = input.targetLanguage;
+      }
+
+      if (input.remoteSessionId) {
+        session.remoteSessionId = input.remoteSessionId;
+      }
+
+      await persistence.addSession(session);
+
+      return session;
+    },
+    listSessions() {
+      return persistence.listSessions();
+    },
+    getSession(sessionId) {
+      return persistence.getSession(sessionId);
+    },
+    async appendSegment(segment) {
+      if (segment.status !== "final") {
+        return;
+      }
+
+      await persistence.putSegment(segment);
+    },
+    getSessionSegments(sessionId) {
+      return persistence.getSegments(sessionId);
+    },
+    async recordSessionError(sessionId, error) {
+      const occurredAt = error.occurredAt ?? Date.now();
+
+      await persistence.updateSession(sessionId, {
+        error: {
+          code: error.code,
+          message: error.message,
+          occurredAt
+        },
+        syncStatus: "failed",
+        updatedAt: occurredAt
+      });
+    },
+    async exportSessionAsText(sessionId) {
+      const { session, segments } = await loadSessionExportData(
+        persistence,
+        sessionId
+      );
+
+      return formatSessionText(session, segments);
+    },
+    async exportSessionAsJson(sessionId) {
+      const { session, segments } = await loadSessionExportData(
+        persistence,
+        sessionId
+      );
+
+      return JSON.stringify({ session, segments }, null, 2);
+    }
+  };
+}
+
+export function createInMemoryHistoryPersistence(): HistoryPersistence {
+  const sessions = new Map<string, HistorySessionRecord>();
+  const segments = new Map<string, HistorySegmentRecord>();
+
+  return {
+    async addSession(session) {
+      sessions.set(session.id, { ...session });
+    },
+    async getSession(sessionId) {
+      const session = sessions.get(sessionId);
+
+      return session ? cloneSession(session) : undefined;
+    },
+    async listSessions() {
+      return Array.from(sessions.values())
+        .map(cloneSession)
+        .sort((left, right) => right.updatedAt - left.updatedAt);
+    },
+    async updateSession(sessionId, changes) {
+      const session = sessions.get(sessionId);
+
+      if (!session) {
+        return;
+      }
+
+      sessions.set(sessionId, {
+        ...session,
+        ...changes
+      });
+    },
+    async putSegment(segment) {
+      segments.set(getSegmentKey(segment), { ...segment });
+    },
+    async getSegments(sessionId) {
+      return Array.from(segments.values())
+        .filter((segment) => segment.sessionId === sessionId)
+        .sort((left, right) => left.startTimeMs - right.startTimeMs)
+        .map((segment) => ({ ...segment }));
+    }
+  };
+}
+
+async function loadSessionExportData(
+  persistence: HistoryPersistence,
+  sessionId: string
+): Promise<{
+  session: HistorySessionRecord;
+  segments: HistorySegmentRecord[];
+}> {
+  const session = await persistence.getSession(sessionId);
+
+  if (!session) {
+    throw new Error("History session not found");
+  }
+
+  const segments = await persistence.getSegments(sessionId);
+
+  return { session, segments };
+}
+
+function formatSessionText(
+  session: HistorySessionRecord,
+  segments: HistorySegmentRecord[]
+): string {
+  const lines = [
+    "EchoFlow transcript",
+    `Session: ${session.id}`,
+    `Languages: ${session.sourceLanguage ?? "unknown"} -> ${
+      session.targetLanguage ?? "unknown"
+    }`,
+    ""
+  ];
+
+  segments.forEach((segment, index) => {
+    if (index > 0) {
+      lines.push("");
+    }
+
+    lines.push(
+      `[${formatTimestamp(segment.startTimeMs)} - ${formatTimestamp(
+        segment.endTimeMs
+      )}]`,
+      segment.sourceText,
+      segment.translatedText
+    );
+  });
+
+  return lines.join("\n");
+}
+
+function formatTimestamp(timeMs: number): string {
+  const totalSeconds = Math.floor(timeMs / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const milliseconds = Math.floor(timeMs % 1000);
+
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(
+    2,
+    "0"
+  )}.${String(milliseconds).padStart(3, "0")}`;
+}
+
+function getSegmentKey(segment: HistorySegmentRecord): string {
+  return `${segment.sessionId}:${segment.segmentId}`;
+}
+
+function cloneSession(session: HistorySessionRecord): HistorySessionRecord {
+  return {
+    ...session,
+    error: session.error ? { ...session.error } : undefined
+  };
+}
