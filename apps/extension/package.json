@@ -3,9 +3,24 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "echo \"extension build placeholder\"",
-    "test": "echo \"extension tests placeholder\"",
-    "typecheck": "echo \"extension typecheck placeholder\"",
-    "lint": "echo \"extension lint placeholder\""
+    "build": "wxt build",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "wxt prepare && tsc -p tsconfig.json --noEmit",
+    "lint": "wxt prepare && tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@echoflow/protocol": "workspace:^",
+    "@wxt-dev/module-react": "^1.2.1",
+    "dexie": "^4.4.3",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.42",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^5.8.0",
+    "vitest": "^3.0.0",
+    "wxt": "^0.20.26"
   }
 }
