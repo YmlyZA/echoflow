@@ -1,7 +1,97 @@
+import { isServerEvent } from "@echoflow/protocol";
+import type { PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { SubtitleOverlay } from "../src/overlay/SubtitleOverlay";
+import { DEFAULT_SUBTITLE_FONT_SIZE } from "../src/settings/settings";
+import {
+  createInitialSubtitleState,
+  reduceSubtitleEvent
+} from "../src/subtitles/reducer";
 
 function EchoFlowMount() {
-  return null;
+  const [subtitleState, dispatchSubtitleEvent] = useReducer(
+    reduceSubtitleEvent,
+    createInitialSubtitleState()
+  );
+  const [hidden, setHidden] = useState(false);
+  const [fontSize, setFontSize] = useState(DEFAULT_SUBTITLE_FONT_SIZE);
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(
+    null
+  );
+
+  useEffect(() => {
+    function handleServerEvent(event: Event) {
+      const detail = (event as CustomEvent<unknown>).detail;
+
+      if (isServerEvent(detail)) {
+        dispatchSubtitleEvent(detail);
+      }
+    }
+
+    window.addEventListener("echoflow:server-event", handleServerEvent);
+
+    return () => {
+      window.removeEventListener("echoflow:server-event", handleServerEvent);
+    };
+  }, []);
+
+  function handleStop() {
+    window.dispatchEvent(new CustomEvent("echoflow:stop-subtitles"));
+  }
+
+  function handleDecreaseFontSize() {
+    setFontSize((currentFontSize) => Math.max(12, currentFontSize - 2));
+  }
+
+  function handleIncreaseFontSize() {
+    setFontSize((currentFontSize) => Math.min(48, currentFontSize + 2));
+  }
+
+  function handleDragStart(event: ReactPointerEvent<HTMLButtonElement>) {
+    event.preventDefault();
+
+    const startClientX = event.clientX;
+    const startClientY = event.clientY;
+    const startPosition = position ?? {
+      x: window.innerWidth / 2,
+      y: 32
+    };
+
+    function handlePointerMove(pointerEvent: PointerEvent) {
+      setPosition({
+        x: startPosition.x + pointerEvent.clientX - startClientX,
+        y: Math.max(
+          8,
+          startPosition.y + startClientY - pointerEvent.clientY
+        )
+      });
+    }
+
+    function handlePointerUp() {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+  }
+
+  return (
+    <SubtitleOverlay
+      segment={subtitleState.currentSegment}
+      transientError={subtitleState.transientError}
+      fontSize={fontSize}
+      hidden={hidden}
+      position={position ?? undefined}
+      onStop={handleStop}
+      onHide={() => setHidden(true)}
+      onShow={() => setHidden(false)}
+      onDecreaseFontSize={handleDecreaseFontSize}
+      onIncreaseFontSize={handleIncreaseFontSize}
+      onDragStart={handleDragStart}
+    />
+  );
 }
 
 export default defineContentScript({
@@ -9,9 +99,9 @@ export default defineContentScript({
   main() {
     const host = document.createElement("div");
     host.id = "echoflow-root";
-    host.hidden = true;
+    const shadowRoot = host.attachShadow({ mode: "open" });
     document.documentElement.append(host);
 
-    createRoot(host).render(<EchoFlowMount />);
+    createRoot(shadowRoot).render(<EchoFlowMount />);
   }
 });
