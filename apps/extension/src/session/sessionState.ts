@@ -49,6 +49,10 @@ export type SessionStateEvent =
       settings: ExtensionSettings;
     } & Omit<ActiveSessionDetails, "targetLanguage" | "remoteSessionId">)
   | {
+      type: "STREAM_READY";
+      streamId: string;
+    }
+  | {
       type: "SESSION_STARTED";
       remoteSessionId?: string;
     }
@@ -90,6 +94,15 @@ export function reduceSessionState(
         targetLanguage: event.settings.targetLanguage
       };
     }
+    case "STREAM_READY":
+      if (state.status !== "connecting") {
+        return state;
+      }
+
+      return {
+        ...state,
+        streamId: event.streamId
+      };
     case "SESSION_STARTED":
       if (state.status !== "connecting") {
         return state;

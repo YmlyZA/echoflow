@@ -74,6 +74,14 @@ async function startSession(tab: chrome.tabs.Tab): Promise<void> {
     });
     localSessionId = localSession.id;
 
+    sessionState = reduceSessionState(sessionState, {
+      type: "START_CONNECTING",
+      localSessionId: localSession.id,
+      tabId: tab.id,
+      streamId: "",
+      settings
+    });
+
     await ensureOffscreenDocument();
 
     const streamId = await chrome.tabCapture.getMediaStreamId({
@@ -81,11 +89,8 @@ async function startSession(tab: chrome.tabs.Tab): Promise<void> {
     });
 
     sessionState = reduceSessionState(sessionState, {
-      type: "START_CONNECTING",
-      localSessionId: localSession.id,
-      tabId: tab.id,
+      type: "STREAM_READY",
       streamId,
-      settings
     });
 
     await setBadge("...");

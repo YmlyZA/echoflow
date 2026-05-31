@@ -39,6 +39,21 @@ describe("session state", () => {
     });
   });
 
+  it("updates the stream ID after tab capture succeeds", () => {
+    const state = connectingState();
+
+    const nextState = reduceSessionState(state, {
+      type: "STREAM_READY",
+      streamId: "stream-after-capture"
+    });
+
+    expect(nextState).toMatchObject({
+      status: "connecting",
+      localSessionId: "local-1",
+      streamId: "stream-after-capture"
+    });
+  });
+
   it("moves from running to stopping", () => {
     const state: SessionState = {
       ...connectingState(),
