@@ -58,7 +58,7 @@ export function isServerEvent(value: unknown): value is ServerEvent {
       return (
         typeof value.segmentId === "string" &&
         typeof value.sourceText === "string" &&
-        (value.translatedText === undefined ||
+        (!hasOwn(value, "translatedText") ||
           typeof value.translatedText === "string")
       );
     case "final":
@@ -82,4 +82,8 @@ export function makeFinalSegment(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
+}
+
+function hasOwn(value: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
 }
