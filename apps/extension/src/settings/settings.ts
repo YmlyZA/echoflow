@@ -149,6 +149,22 @@ export async function saveSettings(
   return validation;
 }
 
+export function buildRealtimeWebSocketUrl(serverUrl: string): string {
+  const url = new URL(serverUrl.trim());
+
+  if (url.protocol === "https:") {
+    url.protocol = "wss:";
+  } else if (url.protocol === "http:") {
+    url.protocol = "ws:";
+  }
+
+  url.pathname = joinUrlPath(url.pathname, "v1/realtime");
+  url.search = "";
+  url.hash = "";
+
+  return url.toString();
+}
+
 export function createChromeStorageAdapter(): SettingsStorageAdapter {
   return {
     async get<T>(key: string): Promise<T | undefined> {
@@ -196,4 +212,12 @@ function getChromeLocalStorage(): chrome.storage.LocalStorageArea {
   }
 
   return globalThis.chrome.storage.local;
+}
+
+function joinUrlPath(basePath: string, childPath: string): string {
+  const normalizedBasePath = basePath.endsWith("/")
+    ? basePath.slice(0, -1)
+    : basePath;
+
+  return `${normalizedBasePath}/${childPath}`;
 }
