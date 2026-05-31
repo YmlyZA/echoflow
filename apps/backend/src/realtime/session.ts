@@ -25,8 +25,8 @@ export class RealtimeSession {
   }
 
   start(): void {
-    this.options.socket.on("message", (data) => {
-      void this.handleFrame(data).catch((error: unknown) => {
+    this.options.socket.on("message", (data, isBinary) => {
+      void this.handleFrame(data, isBinary).catch((error: unknown) => {
         this.sendError(getErrorCode(error), getErrorMessage(error));
       });
     });
@@ -48,12 +48,12 @@ export class RealtimeSession {
     ]);
   }
 
-  private async handleFrame(data: WebSocket.RawData): Promise<void> {
+  private async handleFrame(data: WebSocket.RawData, isBinary: boolean): Promise<void> {
     if (this.closed) {
       return;
     }
 
-    if (typeof data === "string" || Buffer.isBuffer(data)) {
+    if (!isBinary && (typeof data === "string" || Buffer.isBuffer(data))) {
       const message = parseClientMessage(data);
       if (message !== undefined) {
         await this.handleClientMessage(message);
