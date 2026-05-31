@@ -1,0 +1,199 @@
+export interface ExtensionSettings {
+  serverUrl: string;
+  apiKey: string;
+  targetLanguage: string;
+  subtitleFontSize: number;
+}
+
+export type SettingsValidationErrors = Partial<
+  Record<keyof ExtensionSettings, string>
+>;
+
+export interface SettingsValidationResult {
+  valid: boolean;
+  errors: SettingsValidationErrors;
+}
+
+export interface SettingsStorageAdapter {
+  get<T>(key: string): Promise<T | undefined>;
+  set<T>(key: string, value: T): Promise<void>;
+}
+
+export const SETTINGS_STORAGE_KEY = "echoflow.settings";
+export const DEFAULT_SUBTITLE_FONT_SIZE = 24;
+
+const DEFAULT_TARGET_LANGUAGE = "en";
+const MIN_SUBTITLE_FONT_SIZE = 12;
+const MAX_SUBTITLE_FONT_SIZE = 48;
+
+export const TARGET_LANGUAGE_OPTIONS = [
+  { value: "en", label: "English" },
+  { value: "zh-CN", label: "Chinese (Simplified)" },
+  { value: "zh-TW", label: "Chinese (Traditional)" },
+  { value: "ja", label: "Japanese" },
+  { value: "ko", label: "Korean" },
+  { value: "es", label: "Spanish" },
+  { value: "fr", label: "French" },
+  { value: "de", label: "German" }
+] as const;
+
+export type StoredExtensionSettings = Partial<ExtensionSettings>;
+
+export function getDefaultTargetLanguage(browserLanguage: string): string {
+  const normalized = browserLanguage.trim().toLowerCase();
+
+  if (normalized.startsWith("zh")) {
+    if (
+      normalized.includes("hant") ||
+      normalized.includes("-tw") ||
+      normalized.includes("-hk") ||
+      normalized.includes("-mo")
+    ) {
+      return "zh-TW";
+    }
+
+    return "zh-CN";
+  }
+
+  const primaryLanguage = normalized.split("-")[0];
+  const supportedLanguage = TARGET_LANGUAGE_OPTIONS.find(
+    (option) => option.value.toLowerCase() === primaryLanguage
+  );
+
+  return supportedLanguage?.value ?? DEFAULT_TARGET_LANGUAGE;
+}
+
+export function resolveSettings(
+  storedSettings: StoredExtensionSettings | undefined,
+  browserLanguage: string
+): ExtensionSettings {
+  return {
+    serverUrl: storedSettings?.serverUrl ?? "",
+    apiKey: storedSettings?.apiKey ?? "",
+    targetLanguage:
+      storedSettings?.targetLanguage ?? getDefaultTargetLanguage(browserLanguage),
+    subtitleFontSize:
+      storedSettings?.subtitleFontSize ?? DEFAULT_SUBTITLE_FONT_SIZE
+  };
+}
+
+export function validateSettings(
+  settings: ExtensionSettings
+): SettingsValidationResult {
+  const errors: SettingsValidationErrors = {};
+  const serverUrl = settings.serverUrl.trim();
+
+  if (!serverUrl) {
+    errors.serverUrl = "Server URL is required";
+  } else {
+    try {
+      const parsedUrl = new URL(serverUrl);
+
+      if (!["http:", "https:", "ws:", "wss:"].includes(parsedUrl.protocol)) {
+        errors.serverUrl = "Server URL must use http, https, ws, or wss";
+      }
+    } catch {
+      errors.serverUrl = "Server URL must be a valid URL";
+    }
+  }
+
+  if (!settings.apiKey.trim()) {
+    errors.apiKey = "API key is required";
+  }
+
+  if (!settings.targetLanguage.trim()) {
+    errors.targetLanguage = "Target language is required";
+  }
+
+  if (
+    !Number.isFinite(settings.subtitleFontSize) ||
+    settings.subtitleFontSize < MIN_SUBTITLE_FONT_SIZE ||
+    settings.subtitleFontSize > MAX_SUBTITLE_FONT_SIZE
+  ) {
+    errors.subtitleFontSize = `Subtitle font size must be between ${MIN_SUBTITLE_FONT_SIZE} and ${MAX_SUBTITLE_FONT_SIZE}`;
+  }
+
+  return {
+    valid: Object.keys(errors).length === 0,
+    errors
+  };
+}
+
+export async function loadSettings(
+  storage: SettingsStorageAdapter = createChromeStorageAdapter(),
+  browserLanguage = getBrowserLanguage()
+): Promise<ExtensionSettings> {
+  const storedSettings =
+    await storage.get<StoredExtensionSettings>(SETTINGS_STORAGE_KEY);
+
+  return resolveSettings(storedSettings, browserLanguage);
+}
+
+export async function saveSettings(
+  settings: ExtensionSettings,
+  storage: SettingsStorageAdapter = createChromeStorageAdapter()
+): Promise<SettingsValidationResult> {
+  const validation = validateSettings(settings);
+
+  if (!validation.valid) {
+    return validation;
+  }
+
+  await storage.set(SETTINGS_STORAGE_KEY, {
+    serverUrl: settings.serverUrl.trim(),
+    apiKey: settings.apiKey.trim(),
+    targetLanguage: settings.targetLanguage.trim(),
+    subtitleFontSize: settings.subtitleFontSize
+  });
+
+  return validation;
+}
+
+export function createChromeStorageAdapter(): SettingsStorageAdapter {
+  return {
+    async get<T>(key: string): Promise<T | undefined> {
+      const storage = getChromeLocalStorage();
+
+      return new Promise((resolve, reject) => {
+        storage.get(key, (items) => {
+          const error = chrome.runtime.lastError;
+
+          if (error) {
+            reject(new Error(error.message));
+            return;
+          }
+
+          resolve(items[key] as T | undefined);
+        });
+      });
+    },
+    async set<T>(key: string, value: T): Promise<void> {
+      const storage = getChromeLocalStorage();
+
+      return new Promise((resolve, reject) => {
+        storage.set({ [key]: value }, () => {
+          const error = chrome.runtime.lastError;
+
+          if (error) {
+            reject(new Error(error.message));
+            return;
+          }
+
+          resolve();
+        });
+      });
+    }
+  };
+}
+
+function getBrowserLanguage(): string {
+  return globalThis.navigator?.language ?? DEFAULT_TARGET_LANGUAGE;
+}
+
+function getChromeLocalStorage(): chrome.storage.LocalStorageArea {
+  if (!globalThis.chrome?.storage?.local) {
+    throw new Error("chrome.storage.local is unavailable");
+  }
+
+  return globalThis.chrome.storage.local;
+}
