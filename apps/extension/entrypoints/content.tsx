@@ -5,7 +5,7 @@ function EchoFlowMount() {
 }
 
 export default defineContentScript({
-  matches: ["http://*/*", "https://*/*"],
+  registration: "runtime",
   main() {
     const host = document.createElement("div");
     host.id = "echoflow-root";

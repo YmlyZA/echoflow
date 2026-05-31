@@ -7,7 +7,7 @@ export default defineConfig({
     name: "EchoFlow",
     description: "Real-time bilingual subtitles for tab audio.",
     version: "0.0.1",
-    permissions: ["activeTab", "storage", "tabCapture", "offscreen"],
+    permissions: ["activeTab", "storage", "tabCapture", "offscreen", "scripting"],
     action: {
       default_title: "EchoFlow"
     }
