@@ -97,6 +97,8 @@ function EchoFlowMount() {
 export default defineContentScript({
   registration: "runtime",
   main() {
+    document.getElementById("echoflow-root")?.remove();
+
     const host = document.createElement("div");
     host.id = "echoflow-root";
     const shadowRoot = host.attachShadow({ mode: "open" });
