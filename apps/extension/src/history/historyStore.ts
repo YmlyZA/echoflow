@@ -253,8 +253,11 @@ function getSegmentKey(segment: HistorySegmentRecord): string {
 }
 
 function cloneSession(session: HistorySessionRecord): HistorySessionRecord {
-  return {
-    ...session,
-    error: session.error ? { ...session.error } : undefined
-  };
+  const clone = { ...session };
+
+  if (session.error) {
+    clone.error = { ...session.error };
+  }
+
+  return clone;
 }
