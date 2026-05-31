@@ -19,7 +19,18 @@ export function createServer(input: BackendConfigInput = {}): FastifyInstance {
       {
         websocket: true,
         preValidation: async (request, reply) => {
-          if (request.headers["x-api-key"] !== config.apiKey) {
+          const queryApiKey =
+            typeof request.query === "object" &&
+            request.query !== null &&
+            "apiKey" in request.query &&
+            typeof request.query.apiKey === "string"
+              ? request.query.apiKey
+              : undefined;
+
+          if (
+            request.headers["x-api-key"] !== config.apiKey &&
+            queryApiKey !== config.apiKey
+          ) {
             return reply.code(401).send({ error: "Unauthorized" });
           }
 

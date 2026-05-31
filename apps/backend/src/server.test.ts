@@ -68,6 +68,41 @@ describe("backend realtime websocket", () => {
     }
   });
 
+  it("accepts api keys from the websocket query string for browser clients", async () => {
+    const server = createServer({ apiKey: "dev-key" });
+
+    try {
+      await server.ready();
+      const socket = await server.injectWS("/v1/realtime?apiKey=dev-key");
+      openSockets.push(socket);
+
+      const events = collectServerEvents(socket, 3);
+      socket.send(JSON.stringify({ type: "start", targetLanguage: "zh-CN" }));
+
+      await expect(events).resolves.toEqual([
+        {
+          type: "language",
+          sourceLanguage: "en",
+          targetLanguage: "zh-CN",
+        },
+        {
+          type: "partial",
+          segmentId: "fake-1",
+          sourceText: "hello from fake speech",
+          translatedText: "你好，来自模拟语音",
+        },
+        {
+          type: "final",
+          segmentId: "fake-1",
+          sourceText: "hello from fake speech provider",
+          translatedText: "你好，来自模拟语音提供器",
+        },
+      ]);
+    } finally {
+      await server.close();
+    }
+  });
+
   it("sends a protocol error for malformed client messages", async () => {
     const server = createServer({ apiKey: "dev-key" });
 
