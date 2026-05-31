@@ -1,0 +1,11 @@
+{
+  "name": "@echoflow/backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo \"backend build placeholder\"",
+    "test": "echo \"backend tests placeholder\"",
+    "typecheck": "echo \"backend typecheck placeholder\"",
+    "lint": "echo \"backend lint placeholder\""
+  }
+}

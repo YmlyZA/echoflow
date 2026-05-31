@@ -1,0 +1,11 @@
+{
+  "name": "@echoflow/extension",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo \"extension build placeholder\"",
+    "test": "echo \"extension tests placeholder\"",
+    "typecheck": "echo \"extension typecheck placeholder\"",
+    "lint": "echo \"extension lint placeholder\""
+  }
+}
