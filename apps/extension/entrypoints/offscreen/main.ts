@@ -1,7 +1,24 @@
-chrome.runtime.onMessage.addListener((message) => {
-  if (message?.type !== "echoflow:offscreen:ping") {
+import {
+  isRuntimeMessage,
+  type SessionStartedMessage
+} from "../../src/messaging/messages";
+
+chrome.runtime.sendMessage({ type: "OFFSCREEN_READY" });
+
+chrome.runtime.onMessage.addListener((message: unknown) => {
+  if (!isRuntimeMessage(message)) {
     return;
   }
 
-  chrome.runtime.sendMessage({ type: "echoflow:offscreen:ready" });
+  if (message.type === "START_SESSION") {
+    void chrome.runtime.sendMessage({
+      type: "SESSION_STARTED",
+      localSessionId: message.localSessionId
+    } satisfies SessionStartedMessage);
+    return;
+  }
+
+  if (message.type === "STOP_SESSION") {
+    return;
+  }
 });

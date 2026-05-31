@@ -2,6 +2,11 @@ import { isServerEvent } from "@echoflow/protocol";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useReducer, useState } from "react";
 import { createRoot } from "react-dom/client";
+import {
+  isRuntimeMessage,
+  type ServerEventMessage,
+  type StopSessionMessage
+} from "../src/messaging/messages";
 import { SubtitleOverlay } from "../src/overlay/SubtitleOverlay";
 import { DEFAULT_SUBTITLE_FONT_SIZE } from "../src/settings/settings";
 import {
@@ -33,6 +38,35 @@ function EchoFlowMount() {
 
     return () => {
       window.removeEventListener("echoflow:server-event", handleServerEvent);
+    };
+  }, []);
+
+  useEffect(() => {
+    function handleRuntimeMessage(message: unknown) {
+      if (!isRuntimeMessage(message) || message.type !== "SERVER_EVENT") {
+        return;
+      }
+
+      window.dispatchEvent(
+        new CustomEvent("echoflow:server-event", {
+          detail: (message as ServerEventMessage).event
+        })
+      );
+    }
+
+    function handleStopSubtitles() {
+      void chrome.runtime.sendMessage({
+        type: "STOP_SESSION",
+        reason: "overlay_stop"
+      } satisfies StopSessionMessage);
+    }
+
+    chrome.runtime.onMessage.addListener(handleRuntimeMessage);
+    window.addEventListener("echoflow:stop-subtitles", handleStopSubtitles);
+
+    return () => {
+      chrome.runtime.onMessage.removeListener(handleRuntimeMessage);
+      window.removeEventListener("echoflow:stop-subtitles", handleStopSubtitles);
     };
   }, []);
 
