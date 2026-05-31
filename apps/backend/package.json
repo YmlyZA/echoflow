@@ -3,9 +3,22 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "echo \"backend build placeholder\"",
-    "test": "echo \"backend tests placeholder\"",
-    "typecheck": "echo \"backend typecheck placeholder\"",
-    "lint": "echo \"backend lint placeholder\""
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.22.3",
+    "typescript": "^5.8.0",
+    "vitest": "^3.0.0"
+  },
+  "dependencies": {
+    "@echoflow/protocol": "workspace:^",
+    "@fastify/websocket": "^11.2.0",
+    "fastify": "^5.8.5",
+    "ws": "^8.21.0"
   }
 }
