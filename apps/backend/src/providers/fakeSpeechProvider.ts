@@ -1,14 +1,4 @@
-export type SpeechSegment = {
-  segmentId: string;
-  partialText: string;
-  finalText: string;
-  sourceLanguage: string;
-};
-
-export type SpeechProvider = {
-  recognize(frame: unknown): Promise<SpeechSegment>;
-  close(): Promise<void> | void;
-};
+import type { SpeechProvider, SpeechSegment } from "./types.js";
 
 export class FakeSpeechProvider implements SpeechProvider {
   async recognize(_frame: unknown): Promise<SpeechSegment> {

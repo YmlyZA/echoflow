@@ -1,6 +1,6 @@
 # EchoFlow
 
-EchoFlow is a Chrome Manifest V3 browser extension MVP for capturing audio from the active tab, streaming it to a local development backend, and rendering bilingual subtitles in the page. The current backend uses fake speech and translation providers for deterministic development and tests.
+EchoFlow is a Chrome Manifest V3 browser extension MVP for capturing audio from the active tab, streaming it to a local development backend, and rendering bilingual subtitles in the page. The current backend uses fake speech providers for deterministic development and tests, with provider configuration in place for adding domestic ASR vendors and a Volcengine translation adapter.
 
 ## MVP Scope
 
@@ -16,7 +16,7 @@ In scope:
 
 Out of scope:
 
-- Real STT or translation providers.
+- Real ASR streaming providers.
 - User accounts, login, server-side history, or sync.
 - Text-to-speech playback.
 - Muting or lowering original tab audio.
@@ -42,8 +42,36 @@ The development defaults are:
 
 - `ECHOFLOW_API_KEY=dev-key`
 - `ECHOFLOW_PORT=8787`
+- `ECHOFLOW_ASR_PROVIDER=fake`
+- `ECHOFLOW_TRANSLATION_PROVIDER=fake`
 
 `PORT` is still accepted by the backend as a compatibility fallback when `ECHOFLOW_PORT` is not set.
+
+### Provider Configuration
+
+The backend separates ASR and translation providers because streaming recognition and text translation usually use different APIs and credentials.
+
+ASR provider names:
+
+- `fake` - deterministic local provider, currently the only implemented ASR provider.
+- `volcengine`, `aliyun`, `tencent` - reserved domestic provider options. Selecting one currently fails fast with a clear startup/runtime error until the matching streaming WebSocket adapter is implemented.
+
+Translation provider names:
+
+- `fake` - deterministic local provider.
+- `volcengine` - calls the Volcengine machine translation large-model API over HTTPS.
+- `aliyun`, `tencent` - reserved provider options.
+
+Volcengine translation environment:
+
+```bash
+ECHOFLOW_TRANSLATION_PROVIDER=volcengine
+VOLCENGINE_API_KEY=your-api-key
+VOLCENGINE_TRANSLATION_ENDPOINT=https://openspeech.bytedance.com/api/v3/machine_translation/matx_translate
+VOLCENGINE_TRANSLATION_RESOURCE_ID=volc.speech.mt
+```
+
+Keep provider credentials only in backend environment files. Do not put provider secrets into the browser extension.
 
 ## Development
 

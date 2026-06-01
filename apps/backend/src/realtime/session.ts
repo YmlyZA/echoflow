@@ -5,8 +5,10 @@ import {
   isClientMessage,
 } from "@echoflow/protocol";
 import type { WebSocket } from "ws";
-import type { SpeechProvider } from "../providers/fakeSpeechProvider.js";
-import type { TranslationProvider } from "../providers/fakeTranslationProvider.js";
+import type {
+  SpeechProvider,
+  TranslationProvider,
+} from "../providers/types.js";
 
 export type RealtimeSessionOptions = {
   socket: WebSocket;

@@ -3,8 +3,12 @@ import { createConfig } from "./config.js";
 
 const ORIGINAL_ENV = {
   ECHOFLOW_API_KEY: process.env.ECHOFLOW_API_KEY,
+  ECHOFLOW_ASR_PROVIDER: process.env.ECHOFLOW_ASR_PROVIDER,
   ECHOFLOW_PORT: process.env.ECHOFLOW_PORT,
+  ECHOFLOW_TRANSLATION_PROVIDER: process.env.ECHOFLOW_TRANSLATION_PROVIDER,
   PORT: process.env.PORT,
+  VOLCENGINE_API_KEY: process.env.VOLCENGINE_API_KEY,
+  VOLCENGINE_TRANSLATION_ENDPOINT: process.env.VOLCENGINE_TRANSLATION_ENDPOINT,
 };
 
 describe("createConfig", () => {
@@ -22,6 +26,10 @@ describe("createConfig", () => {
     expect(createConfig()).toEqual({
       apiKey: "custom-key",
       port: 9999,
+      providers: {
+        asr: { provider: "fake" },
+        translation: { provider: "fake" },
+      },
     });
   });
 
@@ -36,10 +44,62 @@ describe("createConfig", () => {
     process.env.ECHOFLOW_API_KEY = "env-key";
     process.env.ECHOFLOW_PORT = "9999";
 
-    expect(createConfig({ apiKey: "input-key", port: 8888 })).toEqual({
+    expect(
+      createConfig({
+        apiKey: "input-key",
+        port: 8888,
+        providers: {
+          asr: { provider: "tencent" },
+          translation: {
+            provider: "volcengine",
+            volcengine: {
+              apiKey: "input-volc-key",
+              endpoint: "https://example.test/translate",
+              resourceId: "volc.speech.mt",
+            },
+          },
+        },
+      }),
+    ).toEqual({
       apiKey: "input-key",
       port: 8888,
+      providers: {
+        asr: { provider: "tencent" },
+        translation: {
+          provider: "volcengine",
+          volcengine: {
+            apiKey: "input-volc-key",
+            endpoint: "https://example.test/translate",
+            resourceId: "volc.speech.mt",
+          },
+        },
+      },
     });
+  });
+
+  it("reads domestic provider settings from environment", () => {
+    process.env.ECHOFLOW_ASR_PROVIDER = "aliyun";
+    process.env.ECHOFLOW_TRANSLATION_PROVIDER = "volcengine";
+    process.env.VOLCENGINE_API_KEY = "volc-key";
+    process.env.VOLCENGINE_TRANSLATION_ENDPOINT = "https://example.test/mt";
+
+    expect(createConfig().providers).toEqual({
+      asr: { provider: "aliyun" },
+      translation: {
+        provider: "volcengine",
+        volcengine: {
+          apiKey: "volc-key",
+          endpoint: "https://example.test/mt",
+          resourceId: "volc.speech.mt",
+        },
+      },
+    });
+  });
+
+  it("rejects unknown provider names", () => {
+    process.env.ECHOFLOW_ASR_PROVIDER = "not-real";
+
+    expect(() => createConfig()).toThrow("Invalid ECHOFLOW_ASR_PROVIDER value: not-real");
   });
 });
 
@@ -51,3 +111,16 @@ function restoreEnv(name: string, value: string | undefined): void {
 
   process.env[name] = value;
 }
+
+afterEach(() => {
+  restoreEnv("ECHOFLOW_ASR_PROVIDER", ORIGINAL_ENV.ECHOFLOW_ASR_PROVIDER);
+  restoreEnv(
+    "ECHOFLOW_TRANSLATION_PROVIDER",
+    ORIGINAL_ENV.ECHOFLOW_TRANSLATION_PROVIDER,
+  );
+  restoreEnv("VOLCENGINE_API_KEY", ORIGINAL_ENV.VOLCENGINE_API_KEY);
+  restoreEnv(
+    "VOLCENGINE_TRANSLATION_ENDPOINT",
+    ORIGINAL_ENV.VOLCENGINE_TRANSLATION_ENDPOINT,
+  );
+});

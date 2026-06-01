@@ -1,11 +1,4 @@
-export type TranslationProvider = {
-  translate(input: {
-    text: string;
-    sourceLanguage: string;
-    targetLanguage: string;
-  }): Promise<string>;
-  close(): Promise<void> | void;
-};
+import type { TranslationInput, TranslationProvider } from "./types.js";
 
 const FAKE_TRANSLATIONS = new Map<string, string>([
   ["hello from fake speech", "你好，来自模拟语音"],
@@ -13,11 +6,7 @@ const FAKE_TRANSLATIONS = new Map<string, string>([
 ]);
 
 export class FakeTranslationProvider implements TranslationProvider {
-  async translate(input: {
-    text: string;
-    sourceLanguage: string;
-    targetLanguage: string;
-  }): Promise<string> {
+  async translate(input: TranslationInput): Promise<string> {
     return FAKE_TRANSLATIONS.get(input.text) ?? `[${input.targetLanguage}] ${input.text}`;
   }
 
