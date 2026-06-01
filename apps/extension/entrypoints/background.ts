@@ -1,3 +1,4 @@
+import { makeFinalSegment } from "@echoflow/protocol";
 import {
   isRuntimeMessage,
   type RuntimeMessage,
@@ -19,6 +20,7 @@ const CONTENT_SCRIPT_PATH = "content-scripts/content.js";
 
 const historyStore = createHistoryStore();
 let sessionState = createInitialSessionState();
+let detectedSourceLanguage = "unknown";
 
 export default defineBackground(() => {
   chrome.runtime.onInstalled.addListener(() => {
@@ -73,6 +75,7 @@ async function startSession(tab: chrome.tabs.Tab): Promise<void> {
       targetLanguage: settings.targetLanguage
     });
     localSessionId = localSession.id;
+    detectedSourceLanguage = "unknown";
 
     sessionState = reduceSessionState(sessionState, {
       type: "START_CONNECTING",
@@ -203,6 +206,27 @@ async function forwardServerEvent(message: ServerEventMessage): Promise<void> {
     message.localSessionId !== sessionState.localSessionId
   ) {
     return;
+  }
+
+  if (message.event.type === "language") {
+    detectedSourceLanguage = message.event.sourceLanguage;
+  }
+
+  if (message.event.type === "final") {
+    const timestamp = Date.now();
+
+    await historyStore.appendSegment(
+      makeFinalSegment({
+        sessionId: message.localSessionId,
+        segmentId: message.event.segmentId,
+        startTimeMs: timestamp,
+        endTimeMs: timestamp,
+        sourceLanguage: detectedSourceLanguage,
+        targetLanguage: sessionState.targetLanguage,
+        sourceText: message.event.sourceText,
+        translatedText: message.event.translatedText
+      })
+    );
   }
 
   await sendMessageToTab(sessionState.tabId, {

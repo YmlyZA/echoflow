@@ -8,6 +8,7 @@ export default defineConfig({
     description: "Real-time bilingual subtitles for tab audio.",
     version: "0.0.1",
     permissions: ["activeTab", "storage", "tabCapture", "offscreen", "scripting"],
+    host_permissions: ["http://127.0.0.1/*", "http://localhost/*"],
     action: {
       default_title: "EchoFlow"
     }

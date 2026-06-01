@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>EchoFlow smoke fixture</title>
+    <style>
+      body {
+        min-height: 100vh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        background: #111827;
+        color: #f9fafb;
+        font-family: system-ui, sans-serif;
+      }
+
+      main {
+        width: min(720px, calc(100vw - 32px));
+      }
+
+      video {
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        background: #020617;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>EchoFlow smoke fixture</h1>
+      <video controls autoplay muted loop aria-label="Test video"></video>
+    </main>
+  </body>
+</html>
