@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "wxt",
     "build": "wxt build",
     "test": "vitest run src --passWithNoTests",
     "test:e2e": "playwright test e2e/extension-smoke.spec.ts",
