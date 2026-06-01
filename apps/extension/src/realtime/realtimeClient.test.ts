@@ -20,7 +20,6 @@ describe("RealtimeClient", () => {
 
     expect(JSON.parse(FakeWebSocket.instances[0].sentText[0])).toEqual({
       type: "start",
-      apiKey: "secret-key",
       sessionId: "local-1",
       tabTitle: "Example",
       tabUrl: "https://example.com/watch",
@@ -49,6 +48,18 @@ describe("RealtimeClient", () => {
 
     expect(FakeWebSocket.instances[0].url).toBe(
       "wss://api.example.com/v1/realtime?apiKey=secret-key"
+    );
+  });
+
+  it("does not duplicate the api key in the start message body", async () => {
+    const client = createClient();
+    const connected = client.connect();
+
+    FakeWebSocket.instances[0].open();
+    await connected;
+
+    expect(JSON.parse(FakeWebSocket.instances[0].sentText[0])).not.toHaveProperty(
+      "apiKey"
     );
   });
 

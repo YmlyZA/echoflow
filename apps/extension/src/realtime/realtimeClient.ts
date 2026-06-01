@@ -156,7 +156,6 @@ export class RealtimeClient {
   private createStartMessage(): ClientMessage {
     return {
       type: "start",
-      apiKey: this.options.apiKey,
       sessionId: this.options.sessionId,
       tabTitle: this.options.tabTitle,
       tabUrl: this.options.tabUrl,
