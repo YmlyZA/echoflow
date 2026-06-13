@@ -68,21 +68,25 @@ export class FakeSpeechProvider implements SpeechProvider {
 
     return {
       pushFrame,
+      // Async so real streaming adapters can drain in-flight audio; the fake resolves immediately.
       async end() {
-        const sentence = SCRIPT[segmentIndex];
-        if (closed || sentence === undefined || wordIndex === 0) {
+        if (closed) {
           return;
         }
-        const words = sentence.split(" ");
-        opts.onSegment({
-          kind: "final",
-          segmentId: `seg-${segmentIndex + 1}`,
-          text: words.join(" "),
-          startTimeMs: segmentStartMs,
-          endTimeMs: lastTimestampMs,
-        });
-        segmentIndex += 1;
-        wordIndex = 0;
+        const sentence = SCRIPT[segmentIndex];
+        if (sentence !== undefined && wordIndex > 0) {
+          const words = sentence.split(" ");
+          opts.onSegment({
+            kind: "final",
+            segmentId: `seg-${segmentIndex + 1}`,
+            text: words.join(" "),
+            startTimeMs: segmentStartMs,
+            endTimeMs: lastTimestampMs,
+          });
+          segmentIndex += 1;
+          wordIndex = 0;
+        }
+        closed = true;
       },
       async close() {
         closed = true;

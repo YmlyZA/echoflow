@@ -301,12 +301,13 @@ export class FakeSpeechProvider implements SpeechProvider {
         languageEmitted = true;
       }
 
-      if (segmentIndex >= SCRIPT.length) {
+      const sentence = SCRIPT[segmentIndex];
+      if (sentence === undefined) {
         return;
       }
 
       lastTimestampMs = frame.timestampMs;
-      const words = SCRIPT[segmentIndex].split(" ");
+      const words = sentence.split(" ");
       if (wordIndex === 0) {
         segmentStartMs = frame.timestampMs;
       }
@@ -337,10 +338,11 @@ export class FakeSpeechProvider implements SpeechProvider {
     return {
       pushFrame,
       async end() {
-        if (closed || segmentIndex >= SCRIPT.length || wordIndex === 0) {
+        const sentence = SCRIPT[segmentIndex];
+        if (closed || sentence === undefined || wordIndex === 0) {
           return;
         }
-        const words = SCRIPT[segmentIndex].split(" ");
+        const words = sentence.split(" ");
         opts.onSegment({
           kind: "final",
           segmentId: `seg-${segmentIndex + 1}`,

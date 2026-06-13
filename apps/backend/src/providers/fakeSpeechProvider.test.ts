@@ -49,4 +49,45 @@ describe("FakeSpeechProvider", () => {
       endTimeMs: 250,
     });
   });
+
+  it("advances across segments with incrementing ids", () => {
+    const events: SegmentEvent[] = [];
+    const stream = new FakeSpeechProvider().open({
+      onSegment: (event) => events.push(event),
+    });
+
+    for (let index = 0; index < 8; index += 1) {
+      stream.pushFrame(frame(index, index * 250));
+    }
+
+    const finals = events.filter((event) => event.kind === "final");
+    expect(finals).toEqual([
+      {
+        kind: "final",
+        segmentId: "seg-1",
+        text: "hello from echoflow",
+        startTimeMs: 0,
+        endTimeMs: 500,
+      },
+      {
+        kind: "final",
+        segmentId: "seg-2",
+        text: "this is the second segment",
+        startTimeMs: 750,
+        endTimeMs: 1750,
+      },
+    ]);
+  });
+
+  it("stops emitting after close()", async () => {
+    const events: SegmentEvent[] = [];
+    const stream = new FakeSpeechProvider().open({
+      onSegment: (event) => events.push(event),
+    });
+
+    await stream.close();
+    stream.pushFrame(frame(0, 0));
+
+    expect(events).toEqual([]);
+  });
 });
