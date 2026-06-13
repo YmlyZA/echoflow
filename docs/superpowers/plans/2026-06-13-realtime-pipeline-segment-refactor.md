@@ -337,21 +337,25 @@ export class FakeSpeechProvider implements SpeechProvider {
 
     return {
       pushFrame,
+      // Async so real streaming adapters can drain in-flight audio; the fake resolves immediately.
       async end() {
-        const sentence = SCRIPT[segmentIndex];
-        if (closed || sentence === undefined || wordIndex === 0) {
+        if (closed) {
           return;
         }
-        const words = sentence.split(" ");
-        opts.onSegment({
-          kind: "final",
-          segmentId: `seg-${segmentIndex + 1}`,
-          text: words.join(" "),
-          startTimeMs: segmentStartMs,
-          endTimeMs: lastTimestampMs,
-        });
-        segmentIndex += 1;
-        wordIndex = 0;
+        const sentence = SCRIPT[segmentIndex];
+        if (sentence !== undefined && wordIndex > 0) {
+          const words = sentence.split(" ");
+          opts.onSegment({
+            kind: "final",
+            segmentId: `seg-${segmentIndex + 1}`,
+            text: words.join(" "),
+            startTimeMs: segmentStartMs,
+            endTimeMs: lastTimestampMs,
+          });
+          segmentIndex += 1;
+          wordIndex = 0;
+        }
+        closed = true;
       },
       async close() {
         closed = true;
@@ -382,6 +386,9 @@ git commit -m "Model the fake speech provider as a streaming segment source"
 **Files:**
 - Rewrite: `apps/backend/src/realtime/session.ts`
 - Test: `apps/backend/src/realtime/session.test.ts`
+- Rewrite: `apps/backend/src/server.test.ts` (integration test of server+session; the old version asserts the pre-refactor `fake-1` per-frame behavior and must move to the new protocol — drive frames, expect `seg-N` segments with timestamps and source-only partials)
+
+> **Note added during execution:** Task 2+3's code-quality review surfaced that `server.test.ts` (an integration test of `createServer`) still asserts the old protocol and would stay red after this task unless rewritten here. Its rewrite is part of Task 4 — see Step 6 below. The session opens the speech stream only on a `start` control message, so every integration test must send `start` before any audio frame.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -826,7 +833,204 @@ class ProtocolMessageError extends Error {
 }
 ```
 
-- [ ] **Step 4: Run the full backend suite + typecheck**
+- [ ] **Step 4: Rewrite the server integration test for the new protocol**
+
+`apps/backend/src/server.test.ts` currently asserts the pre-refactor behavior (a lone `start` message yields a `fake-1` partial+final). Under the new protocol a `start` opens the stream but emits nothing until binary audio frames arrive, and partials are source-only. Overwrite `apps/backend/src/server.test.ts` with:
+
+```ts
+import type { ServerEvent } from "@echoflow/protocol";
+import { isServerEvent } from "@echoflow/protocol";
+import { afterEach, describe, expect, it } from "vitest";
+import type { WebSocket } from "ws";
+import { createServer } from "./server.js";
+
+const openSockets: WebSocket[] = [];
+
+afterEach(() => {
+  for (const socket of openSockets.splice(0)) {
+    socket.terminate();
+  }
+});
+
+function sendAudioFrame(
+  socket: WebSocket,
+  sequenceNumber: number,
+  timestampMs: number,
+): void {
+  socket.send(
+    JSON.stringify({
+      type: "audio_frame",
+      frame: { sequenceNumber, timestampMs },
+    }),
+  );
+  socket.send(Buffer.from([1, 2, 3]));
+}
+
+const SEGMENT_ONE = [
+  { type: "language", sourceLanguage: "en", targetLanguage: "zh-CN" },
+  { type: "partial", segmentId: "seg-1", sourceText: "hello" },
+  { type: "partial", segmentId: "seg-1", sourceText: "hello from" },
+  {
+    type: "final",
+    segmentId: "seg-1",
+    sourceText: "hello from echoflow",
+    translatedText: "[zh-CN] hello from echoflow",
+    startTimeMs: 0,
+    endTimeMs: 500,
+  },
+];
+
+describe("backend realtime websocket", () => {
+  it("emits language, progressive partials, and a final once frames drive a segment", async () => {
+    const server = createServer({ apiKey: "dev-key" });
+
+    try {
+      await server.ready();
+      const socket = await server.injectWS("/v1/realtime", {
+        headers: { "x-api-key": "dev-key" },
+      });
+      openSockets.push(socket);
+
+      const events = collectServerEvents(socket, 4);
+      socket.send(JSON.stringify({ type: "start", targetLanguage: "zh-CN" }));
+      sendAudioFrame(socket, 0, 0);
+      sendAudioFrame(socket, 1, 250);
+      sendAudioFrame(socket, 2, 500);
+
+      await expect(events).resolves.toEqual(SEGMENT_ONE);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("rejects missing and wrong api keys before websocket work starts", async () => {
+    const server = createServer({ apiKey: "dev-key" });
+
+    try {
+      await server.ready();
+      await expect(server.injectWS("/v1/realtime")).rejects.toThrow(
+        "Unexpected server response: 401",
+      );
+      await expect(
+        server.injectWS("/v1/realtime", {
+          headers: { "x-api-key": "wrong-key" },
+        }),
+      ).rejects.toThrow("Unexpected server response: 401");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("accepts api keys from the websocket query string for browser clients", async () => {
+    const server = createServer({ apiKey: "dev-key" });
+
+    try {
+      await server.ready();
+      const socket = await server.injectWS("/v1/realtime?apiKey=dev-key");
+      openSockets.push(socket);
+
+      const events = collectServerEvents(socket, 4);
+      socket.send(JSON.stringify({ type: "start", targetLanguage: "zh-CN" }));
+      sendAudioFrame(socket, 0, 0);
+      sendAudioFrame(socket, 1, 250);
+      sendAudioFrame(socket, 2, 500);
+
+      await expect(events).resolves.toEqual(SEGMENT_ONE);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("sends a protocol error for malformed client messages", async () => {
+    const server = createServer({ apiKey: "dev-key" });
+
+    try {
+      await server.ready();
+      const socket = await server.injectWS("/v1/realtime", {
+        headers: { "x-api-key": "dev-key" },
+      });
+      openSockets.push(socket);
+
+      const event = collectServerEvents(socket, 1);
+      socket.send(JSON.stringify({ type: "definitely-not-supported" }));
+
+      await expect(event).resolves.toEqual([
+        {
+          type: "error",
+          code: "invalid_client_message",
+          message: "Malformed client message",
+        },
+      ]);
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("treats binary frames as audio even when their bytes look like json", async () => {
+    const server = createServer({ apiKey: "dev-key" });
+
+    try {
+      await server.ready();
+      const socket = await server.injectWS("/v1/realtime", {
+        headers: { "x-api-key": "dev-key" },
+      });
+      openSockets.push(socket);
+
+      const events = collectServerEvents(socket, 4);
+      socket.send(JSON.stringify({ type: "start", targetLanguage: "zh-CN" }));
+      socket.send(Buffer.from([0x7b, 0xff, 0x00]));
+      socket.send(Buffer.from([0x7b, 0xff, 0x00]));
+      socket.send(Buffer.from([0x7b, 0xff, 0x00]));
+
+      await expect(events).resolves.toEqual([
+        { type: "language", sourceLanguage: "en", targetLanguage: "zh-CN" },
+        { type: "partial", segmentId: "seg-1", sourceText: "hello" },
+        { type: "partial", segmentId: "seg-1", sourceText: "hello from" },
+        {
+          type: "final",
+          segmentId: "seg-1",
+          sourceText: "hello from echoflow",
+          translatedText: "[zh-CN] hello from echoflow",
+          startTimeMs: 0,
+          endTimeMs: 0,
+        },
+      ]);
+    } finally {
+      await server.close();
+    }
+  });
+});
+
+function collectServerEvents(
+  socket: WebSocket,
+  expectedCount: number,
+): Promise<ServerEvent[]> {
+  return new Promise((resolve, reject) => {
+    const events: ServerEvent[] = [];
+    const timeout = setTimeout(() => {
+      reject(new Error(`Timed out waiting for ${expectedCount} server events`));
+    }, 1_000);
+
+    socket.on("error", reject);
+    socket.on("message", (data) => {
+      const parsed: unknown = JSON.parse(data.toString());
+      if (!isServerEvent(parsed)) {
+        clearTimeout(timeout);
+        reject(new Error(`Received invalid server event: ${data.toString()}`));
+        return;
+      }
+
+      events.push(parsed);
+      if (events.length === expectedCount) {
+        clearTimeout(timeout);
+        resolve(events);
+      }
+    });
+  });
+}
+```
+
+- [ ] **Step 5: Run the full backend suite + typecheck**
 
 Run: `pnpm --filter @echoflow/backend test`
 Expected: PASS (RealtimeSession + fake provider + config + server tests).
@@ -834,10 +1038,10 @@ Expected: PASS (RealtimeSession + fake provider + config + server tests).
 Run: `pnpm --filter @echoflow/backend typecheck`
 Expected: PASS (no errors).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add apps/backend/src/realtime/session.ts apps/backend/src/realtime/session.test.ts
+git add apps/backend/src/realtime/session.ts apps/backend/src/realtime/session.test.ts apps/backend/src/server.test.ts
 git commit -m "Pump audio into a streaming provider and relay its segments"
 ```
 
