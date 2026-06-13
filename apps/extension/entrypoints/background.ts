@@ -1,4 +1,4 @@
-import { makeFinalSegment } from "@echoflow/protocol";
+import { finalEventToSegment } from "../src/history/segmentMapping";
 import {
   isRuntimeMessage,
   type RuntimeMessage,
@@ -210,21 +210,18 @@ async function forwardServerEvent(message: ServerEventMessage): Promise<void> {
 
   if (message.event.type === "language") {
     detectedSourceLanguage = message.event.sourceLanguage;
+    await historyStore.updateSessionLanguages(message.localSessionId, {
+      sourceLanguage: message.event.sourceLanguage
+    });
   }
 
   if (message.event.type === "final") {
-    const timestamp = Date.now();
-
     await historyStore.appendSegment(
-      makeFinalSegment({
-        sessionId: message.localSessionId,
-        segmentId: message.event.segmentId,
-        startTimeMs: timestamp,
-        endTimeMs: timestamp,
+      finalEventToSegment({
+        localSessionId: message.localSessionId,
+        event: message.event,
         sourceLanguage: detectedSourceLanguage,
-        targetLanguage: sessionState.targetLanguage,
-        sourceText: message.event.sourceText,
-        translatedText: message.event.translatedText
+        targetLanguage: sessionState.targetLanguage
       })
     );
   }
