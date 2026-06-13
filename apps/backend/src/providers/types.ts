@@ -1,13 +1,28 @@
-export type SpeechSegment = {
-  segmentId: string;
-  partialText: string;
-  finalText: string;
-  sourceLanguage: string;
+export type AudioFrame = {
+  data: Buffer | ArrayBuffer;
+  sequenceNumber: number;
+  timestampMs: number;
 };
 
+export type SegmentEvent =
+  | { kind: "language"; sourceLanguage: string }
+  | { kind: "partial"; segmentId: string; text: string; startTimeMs: number }
+  | {
+      kind: "final";
+      segmentId: string;
+      text: string;
+      startTimeMs: number;
+      endTimeMs: number;
+    };
+
+export interface SpeechRecognitionStream {
+  pushFrame(frame: AudioFrame): void;
+  end(): Promise<void>;
+  close(): Promise<void>;
+}
+
 export type SpeechProvider = {
-  recognize(frame: unknown): Promise<SpeechSegment>;
-  close(): Promise<void> | void;
+  open(opts: { onSegment: (event: SegmentEvent) => void }): SpeechRecognitionStream;
 };
 
 export type TranslationInput = {
