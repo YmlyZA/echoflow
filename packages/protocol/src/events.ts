@@ -16,6 +16,8 @@ export type FinalSubtitleEvent = {
   segmentId: string;
   sourceText: string;
   translatedText: string;
+  startTimeMs: number;
+  endTimeMs: number;
 };
 
 export type ErrorEvent = {
@@ -65,7 +67,11 @@ export function isServerEvent(value: unknown): value is ServerEvent {
       return (
         typeof value.segmentId === "string" &&
         typeof value.sourceText === "string" &&
-        typeof value.translatedText === "string"
+        typeof value.translatedText === "string" &&
+        typeof value.startTimeMs === "number" &&
+        Number.isFinite(value.startTimeMs) &&
+        typeof value.endTimeMs === "number" &&
+        Number.isFinite(value.endTimeMs)
       );
     case "error":
       return typeof value.code === "string" && typeof value.message === "string";

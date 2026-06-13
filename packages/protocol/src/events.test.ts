@@ -30,6 +30,8 @@ describe("protocol events", () => {
         segmentId: "s1",
         sourceText: "hello everyone",
         translatedText: "大家好",
+        startTimeMs: 0,
+        endTimeMs: 1000,
       }),
     ).toBe(true);
   });
@@ -99,5 +101,44 @@ describe("protocol events", () => {
         endTimeMs: 900,
       }).status,
     ).toBe("final");
+  });
+});
+
+describe("isServerEvent final timestamps", () => {
+  it("accepts a final event with numeric start/end times", () => {
+    expect(
+      isServerEvent({
+        type: "final",
+        segmentId: "seg-1",
+        sourceText: "hello",
+        translatedText: "你好",
+        startTimeMs: 0,
+        endTimeMs: 500,
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects a final event missing start/end times", () => {
+    expect(
+      isServerEvent({
+        type: "final",
+        segmentId: "seg-1",
+        sourceText: "hello",
+        translatedText: "你好",
+      }),
+    ).toBe(false);
+  });
+
+  it("rejects a final event with non-numeric times", () => {
+    expect(
+      isServerEvent({
+        type: "final",
+        segmentId: "seg-1",
+        sourceText: "hello",
+        translatedText: "你好",
+        startTimeMs: "0",
+        endTimeMs: 500,
+      }),
+    ).toBe(false);
   });
 });
