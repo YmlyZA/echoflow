@@ -65,6 +65,10 @@ export interface HistoryStore {
     sessionId: string,
     error: RecordSessionErrorInput
   ): Promise<void>;
+  updateSessionLanguages(
+    sessionId: string,
+    changes: { sourceLanguage?: string; targetLanguage?: string; updatedAt?: number }
+  ): Promise<void>;
   exportSessionAsText(sessionId: string): Promise<string>;
   exportSessionAsJson(sessionId: string): Promise<string>;
 }
@@ -126,6 +130,19 @@ export function createHistoryStore(
         syncStatus: "failed",
         updatedAt: occurredAt
       });
+    },
+    async updateSessionLanguages(sessionId, changes) {
+      const updatedAt = changes.updatedAt ?? Date.now();
+      const update: Partial<HistorySessionRecord> = { updatedAt };
+
+      if (changes.sourceLanguage !== undefined) {
+        update.sourceLanguage = changes.sourceLanguage;
+      }
+      if (changes.targetLanguage !== undefined) {
+        update.targetLanguage = changes.targetLanguage;
+      }
+
+      await persistence.updateSession(sessionId, update);
     },
     async exportSessionAsText(sessionId) {
       const { session, segments } = await loadSessionExportData(

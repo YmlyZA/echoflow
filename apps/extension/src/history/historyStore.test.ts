@@ -161,3 +161,22 @@ function makeSegment(
     ...overrides
   });
 }
+
+describe("updateSessionLanguages", () => {
+  it("persists the detected source language and bumps updatedAt", async () => {
+    const store = createHistoryStore(createInMemoryHistoryPersistence());
+    const session = await store.createLocalSession({
+      startedAt: 1000,
+      targetLanguage: "zh-CN",
+    });
+
+    await store.updateSessionLanguages(session.id, {
+      sourceLanguage: "en",
+      updatedAt: 2000,
+    });
+
+    const updated = await store.getSession(session.id);
+    expect(updated?.sourceLanguage).toBe("en");
+    expect(updated?.updatedAt).toBe(2000);
+  });
+});
