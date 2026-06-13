@@ -12,8 +12,36 @@ afterEach(() => {
   }
 });
 
+function sendAudioFrame(
+  socket: WebSocket,
+  sequenceNumber: number,
+  timestampMs: number,
+): void {
+  socket.send(
+    JSON.stringify({
+      type: "audio_frame",
+      frame: { sequenceNumber, timestampMs },
+    }),
+  );
+  socket.send(Buffer.from([1, 2, 3]));
+}
+
+const SEGMENT_ONE = [
+  { type: "language", sourceLanguage: "en", targetLanguage: "zh-CN" },
+  { type: "partial", segmentId: "seg-1", sourceText: "hello" },
+  { type: "partial", segmentId: "seg-1", sourceText: "hello from" },
+  {
+    type: "final",
+    segmentId: "seg-1",
+    sourceText: "hello from echoflow",
+    translatedText: "[zh-CN] hello from echoflow",
+    startTimeMs: 0,
+    endTimeMs: 500,
+  },
+];
+
 describe("backend realtime websocket", () => {
-  it("emits deterministic language, partial, and final events after a start message", async () => {
+  it("emits language, progressive partials, and a final once frames drive a segment", async () => {
     const server = createServer({ apiKey: "dev-key" });
 
     try {
@@ -23,28 +51,13 @@ describe("backend realtime websocket", () => {
       });
       openSockets.push(socket);
 
-      const events = collectServerEvents(socket, 3);
+      const events = collectServerEvents(socket, 4);
       socket.send(JSON.stringify({ type: "start", targetLanguage: "zh-CN" }));
+      sendAudioFrame(socket, 0, 0);
+      sendAudioFrame(socket, 1, 250);
+      sendAudioFrame(socket, 2, 500);
 
-      await expect(events).resolves.toEqual([
-        {
-          type: "language",
-          sourceLanguage: "en",
-          targetLanguage: "zh-CN",
-        },
-        {
-          type: "partial",
-          segmentId: "fake-1",
-          sourceText: "hello from fake speech",
-          translatedText: "你好，来自模拟语音",
-        },
-        {
-          type: "final",
-          segmentId: "fake-1",
-          sourceText: "hello from fake speech provider",
-          translatedText: "你好，来自模拟语音提供器",
-        },
-      ]);
+      await expect(events).resolves.toEqual(SEGMENT_ONE);
     } finally {
       await server.close();
     }
@@ -76,28 +89,13 @@ describe("backend realtime websocket", () => {
       const socket = await server.injectWS("/v1/realtime?apiKey=dev-key");
       openSockets.push(socket);
 
-      const events = collectServerEvents(socket, 3);
+      const events = collectServerEvents(socket, 4);
       socket.send(JSON.stringify({ type: "start", targetLanguage: "zh-CN" }));
+      sendAudioFrame(socket, 0, 0);
+      sendAudioFrame(socket, 1, 250);
+      sendAudioFrame(socket, 2, 500);
 
-      await expect(events).resolves.toEqual([
-        {
-          type: "language",
-          sourceLanguage: "en",
-          targetLanguage: "zh-CN",
-        },
-        {
-          type: "partial",
-          segmentId: "fake-1",
-          sourceText: "hello from fake speech",
-          translatedText: "你好，来自模拟语音",
-        },
-        {
-          type: "final",
-          segmentId: "fake-1",
-          sourceText: "hello from fake speech provider",
-          translatedText: "你好，来自模拟语音提供器",
-        },
-      ]);
+      await expect(events).resolves.toEqual(SEGMENT_ONE);
     } finally {
       await server.close();
     }
@@ -138,26 +136,23 @@ describe("backend realtime websocket", () => {
       });
       openSockets.push(socket);
 
-      const events = collectServerEvents(socket, 3);
+      const events = collectServerEvents(socket, 4);
+      socket.send(JSON.stringify({ type: "start", targetLanguage: "zh-CN" }));
+      socket.send(Buffer.from([0x7b, 0xff, 0x00]));
+      socket.send(Buffer.from([0x7b, 0xff, 0x00]));
       socket.send(Buffer.from([0x7b, 0xff, 0x00]));
 
       await expect(events).resolves.toEqual([
-        {
-          type: "language",
-          sourceLanguage: "en",
-          targetLanguage: "zh-CN",
-        },
-        {
-          type: "partial",
-          segmentId: "fake-1",
-          sourceText: "hello from fake speech",
-          translatedText: "你好，来自模拟语音",
-        },
+        { type: "language", sourceLanguage: "en", targetLanguage: "zh-CN" },
+        { type: "partial", segmentId: "seg-1", sourceText: "hello" },
+        { type: "partial", segmentId: "seg-1", sourceText: "hello from" },
         {
           type: "final",
-          segmentId: "fake-1",
-          sourceText: "hello from fake speech provider",
-          translatedText: "你好，来自模拟语音提供器",
+          segmentId: "seg-1",
+          sourceText: "hello from echoflow",
+          translatedText: "[zh-CN] hello from echoflow",
+          startTimeMs: 0,
+          endTimeMs: 0,
         },
       ]);
     } finally {
