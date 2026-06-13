@@ -32,7 +32,9 @@ describe("subtitle reducer", () => {
       type: "final",
       segmentId: "s1",
       sourceText: "hello world",
-      translatedText: "你好，世界"
+      translatedText: "你好，世界",
+      startTimeMs: 0,
+      endTimeMs: 1
     });
 
     const latePartial = reduceSubtitleEvent(finalized, {
@@ -95,5 +97,42 @@ describe("subtitle reducer", () => {
 
     expect(state.detectedSourceLanguage).toBe("ja");
     expect(state.targetLanguage).toBe("en");
+  });
+});
+
+describe("reducer multi-segment flow", () => {
+  it("shows untranslated partials as source-only and advances across segments", () => {
+    let state = createInitialSubtitleState();
+
+    state = reduceSubtitleEvent(state, {
+      type: "partial",
+      segmentId: "seg-1",
+      sourceText: "a",
+    });
+    expect(state.currentSegment).toMatchObject({
+      segmentId: "seg-1",
+      translatedText: "",
+      status: "partial",
+    });
+
+    state = reduceSubtitleEvent(state, {
+      type: "final",
+      segmentId: "seg-1",
+      sourceText: "a b",
+      translatedText: "甲乙",
+      startTimeMs: 0,
+      endTimeMs: 1,
+    });
+    state = reduceSubtitleEvent(state, {
+      type: "partial",
+      segmentId: "seg-2",
+      sourceText: "c",
+    });
+
+    expect(state.currentSegment).toMatchObject({
+      segmentId: "seg-2",
+      status: "partial",
+    });
+    expect(state.finalizedSegmentIds).toContain("seg-1");
   });
 });
