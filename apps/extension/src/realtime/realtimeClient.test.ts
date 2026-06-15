@@ -221,6 +221,16 @@ describe("RealtimeClient reconnect", () => {
     FakeWebSocket.instances = [];
   });
 
+  it("does not signal connected on the initial connection", async () => {
+    const onStatus = vi.fn();
+    const client = createClient({ onStatus });
+    const connected = client.connect();
+    FakeWebSocket.instances[0].open();
+    await connected;
+
+    expect(onStatus).not.toHaveBeenCalled();
+  });
+
   it("reconnects with backoff and re-sends the handshake after an unexpected close", async () => {
     vi.useFakeTimers();
     try {
