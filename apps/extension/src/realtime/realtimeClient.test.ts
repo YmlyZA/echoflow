@@ -209,7 +209,99 @@ class FakeWebSocket implements BrowserWebSocket {
   error(): void {
     this.onerror?.(new Event("error"));
   }
+
+  remoteClose(): void {
+    this.readyState = 3;
+    this.onclose?.({} as CloseEvent);
+  }
 }
+
+describe("RealtimeClient reconnect", () => {
+  beforeEach(() => {
+    FakeWebSocket.instances = [];
+  });
+
+  it("reconnects with backoff and re-sends the handshake after an unexpected close", async () => {
+    vi.useFakeTimers();
+    try {
+      const onStatus = vi.fn();
+      const client = createClient({ onStatus, reconnectBaseDelayMs: 500 });
+      const connected = client.connect();
+      FakeWebSocket.instances[0].open();
+      await connected;
+
+      FakeWebSocket.instances[0].remoteClose();
+      expect(onStatus).toHaveBeenCalledWith("reconnecting");
+      expect(FakeWebSocket.instances).toHaveLength(1);
+
+      await vi.advanceTimersByTimeAsync(500);
+      expect(FakeWebSocket.instances).toHaveLength(2);
+
+      FakeWebSocket.instances[1].open();
+      expect(onStatus).toHaveBeenCalledWith("connected");
+      expect(JSON.parse(FakeWebSocket.instances[1].sentText[0])).toMatchObject({
+        type: "start",
+        sessionId: "local-1",
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives up after maxReconnectAttempts and reports connection_lost", async () => {
+    vi.useFakeTimers();
+    try {
+      const onError = vi.fn();
+      const onStatus = vi.fn();
+      const client = createClient({
+        onError,
+        onStatus,
+        maxReconnectAttempts: 2,
+        reconnectBaseDelayMs: 100,
+        reconnectMaxDelayMs: 1000,
+      });
+      const connected = client.connect();
+      FakeWebSocket.instances[0].open();
+      await connected;
+
+      FakeWebSocket.instances[0].remoteClose();
+      await vi.advanceTimersByTimeAsync(100);
+      expect(onError).not.toHaveBeenCalled();
+      FakeWebSocket.instances[1].error();
+      await vi.advanceTimersByTimeAsync(200);
+      FakeWebSocket.instances[2].error();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(onStatus).toHaveBeenCalledWith("reconnecting");
+      expect(onError).toHaveBeenCalledTimes(1);
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({ code: "connection_lost" }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not reconnect after an intentional stop", async () => {
+    const client = createConnectedClient();
+
+    client.stop();
+    FakeWebSocket.instances[0].remoteClose();
+
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it("drops audio frames while disconnected instead of throwing", () => {
+    const client = createClient();
+
+    expect(() =>
+      client.sendAudioFrame(new Blob(["x"], { type: "audio/webm" }), {
+        sequenceNumber: 0,
+        timestampMs: 0,
+      }),
+    ).not.toThrow();
+  });
+});
 
 describe("withEpochSegmentId", () => {
   it("prefixes partial and final segment ids with the epoch", () => {

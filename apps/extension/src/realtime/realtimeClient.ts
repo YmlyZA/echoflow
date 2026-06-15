@@ -20,6 +20,8 @@ export interface BrowserWebSocket {
 
 export type BrowserWebSocketConstructor = new (url: string) => BrowserWebSocket;
 
+export type ConnectionStatus = "reconnecting" | "connected";
+
 export interface RealtimeClientOptions {
   url: string;
   apiKey: string;
@@ -31,9 +33,13 @@ export interface RealtimeClientOptions {
   clientCapabilities?: ClientCapabilities;
   maxConnectionAttempts?: number;
   retryDelayMs?: number;
+  maxReconnectAttempts?: number;
+  reconnectBaseDelayMs?: number;
+  reconnectMaxDelayMs?: number;
   WebSocketCtor?: BrowserWebSocketConstructor;
   onEvent?: (event: ServerEvent) => void;
   onError?: (error: RealtimeClientError) => void;
+  onStatus?: (status: ConnectionStatus) => void;
 }
 
 export interface RealtimeClientError {
@@ -43,6 +49,9 @@ export interface RealtimeClientError {
 
 const DEFAULT_MAX_CONNECTION_ATTEMPTS = 3;
 const DEFAULT_RETRY_DELAY_MS = 250;
+const DEFAULT_MAX_RECONNECT_ATTEMPTS = 5;
+const DEFAULT_RECONNECT_BASE_DELAY_MS = 500;
+const DEFAULT_RECONNECT_MAX_DELAY_MS = 8000;
 const DEFAULT_CLIENT_CAPABILITIES: ClientCapabilities = {
   binaryAudioFrames: true,
   partialSubtitles: true,
@@ -53,6 +62,10 @@ const DEFAULT_CLIENT_CAPABILITIES: ClientCapabilities = {
 
 export class RealtimeClient {
   private socket: BrowserWebSocket | undefined;
+  private stopped = false;
+  private epoch = 0;
+  private reconnectAttempts = 0;
+  private reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(private readonly options: RealtimeClientOptions) {}
 
@@ -84,7 +97,11 @@ export class RealtimeClient {
     data: Blob | ArrayBuffer,
     frame: Omit<AudioFrameMetadata, "byteLength"> & { byteLength?: number }
   ): void {
-    const socket = this.requireOpenSocket();
+    const socket = this.socket;
+    if (!socket || socket.readyState !== socket.OPEN) {
+      return;
+    }
+
     const byteLength = frame.byteLength ?? getByteLength(data);
     const message: ClientMessage = {
       type: "audio_frame",
@@ -100,8 +117,15 @@ export class RealtimeClient {
   }
 
   stop(reason = "client_stop"): void {
-    if (!this.socket || this.socket.readyState !== this.socket.OPEN) {
-      this.socket?.close();
+    this.stopped = true;
+    if (this.reconnectTimer !== undefined) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = undefined;
+    }
+
+    const socket = this.socket;
+    if (!socket || socket.readyState !== socket.OPEN) {
+      socket?.close();
       return;
     }
 
@@ -111,8 +135,8 @@ export class RealtimeClient {
       reason
     };
 
-    this.socket.send(JSON.stringify(message));
-    this.socket.close();
+    socket.send(JSON.stringify(message));
+    socket.close();
   }
 
   private openSocket(): Promise<void> {
@@ -121,15 +145,24 @@ export class RealtimeClient {
       (globalThis.WebSocket as unknown as BrowserWebSocketConstructor);
 
     return new Promise((resolve, reject) => {
-      let settled = false;
+      let opened = false;
       const socket = new WebSocketCtor(
         buildAuthenticatedWebSocketUrl(this.options.url, this.options.apiKey)
       );
       this.socket = socket;
 
       socket.onopen = () => {
-        settled = true;
+        opened = true;
+        this.epoch += 1;
+        // The retry budget is per stable connection: a successful open clears it
+        // so a later, unrelated drop gets a fresh set of attempts. A backend that
+        // accepts then immediately drops would therefore reconnect indefinitely;
+        // that pathological case is out of scope for the localhost MVP.
+        this.reconnectAttempts = 0;
         socket.send(JSON.stringify(this.createStartMessage()));
+        if (this.epoch > 1) {
+          this.options.onStatus?.("connected");
+        }
         resolve();
       };
 
@@ -138,19 +171,61 @@ export class RealtimeClient {
       };
 
       socket.onerror = () => {
-        if (!settled) {
-          settled = true;
+        if (!opened) {
           reject(new Error("Realtime connection failed"));
         }
       };
 
       socket.onclose = () => {
-        if (!settled) {
-          settled = true;
+        if (!opened) {
           reject(new Error("Realtime connection closed before opening"));
+          return;
         }
+
+        this.handleUnexpectedClose();
       };
     });
+  }
+
+  private handleUnexpectedClose(): void {
+    if (this.stopped) {
+      return;
+    }
+    this.scheduleReconnect();
+  }
+
+  private scheduleReconnect(): void {
+    if (this.stopped) {
+      return;
+    }
+
+    const maxAttempts =
+      this.options.maxReconnectAttempts ?? DEFAULT_MAX_RECONNECT_ATTEMPTS;
+    if (this.reconnectAttempts >= maxAttempts) {
+      this.options.onError?.({
+        code: "connection_lost",
+        message: "Realtime connection lost"
+      });
+      return;
+    }
+
+    const base =
+      this.options.reconnectBaseDelayMs ?? DEFAULT_RECONNECT_BASE_DELAY_MS;
+    const cap =
+      this.options.reconnectMaxDelayMs ?? DEFAULT_RECONNECT_MAX_DELAY_MS;
+    const delayMs = Math.min(base * 2 ** this.reconnectAttempts, cap);
+    this.reconnectAttempts += 1;
+    this.options.onStatus?.("reconnecting");
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = undefined;
+      if (this.stopped) {
+        return;
+      }
+      this.openSocket().catch(() => {
+        this.scheduleReconnect();
+      });
+    }, delayMs);
   }
 
   private createStartMessage(): ClientMessage {
@@ -173,26 +248,18 @@ export class RealtimeClient {
       }
 
       const event = parseServerEventMessage(data);
-      this.options.onEvent?.(event);
+      this.options.onEvent?.(withEpochSegmentId(event, this.epoch));
     } catch (error) {
       this.options.onError?.(
         toClientError(error, "invalid_server_message", "Invalid server message")
       );
     }
   }
-
-  private requireOpenSocket(): BrowserWebSocket {
-    if (!this.socket || this.socket.readyState !== this.socket.OPEN) {
-      throw new Error("Realtime connection is not open");
-    }
-
-    return this.socket;
-  }
 }
 
 export function withEpochSegmentId(
   event: ServerEvent,
-  epoch: number,
+  epoch: number
 ): ServerEvent {
   if (event.type === "partial" || event.type === "final") {
     return { ...event, segmentId: `e${epoch}:${event.segmentId}` };
