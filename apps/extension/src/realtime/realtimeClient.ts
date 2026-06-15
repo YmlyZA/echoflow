@@ -190,6 +190,17 @@ export class RealtimeClient {
   }
 }
 
+export function withEpochSegmentId(
+  event: ServerEvent,
+  epoch: number,
+): ServerEvent {
+  if (event.type === "partial" || event.type === "final") {
+    return { ...event, segmentId: `e${epoch}:${event.segmentId}` };
+  }
+
+  return event;
+}
+
 export function parseServerEventMessage(data: string): ServerEvent {
   let parsed: unknown;
 

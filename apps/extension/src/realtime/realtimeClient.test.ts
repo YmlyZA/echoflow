@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   RealtimeClient,
   parseServerEventMessage,
+  withEpochSegmentId,
   type BrowserWebSocket
 } from "./realtimeClient";
 
@@ -209,3 +210,44 @@ class FakeWebSocket implements BrowserWebSocket {
     this.onerror?.(new Event("error"));
   }
 }
+
+describe("withEpochSegmentId", () => {
+  it("prefixes partial and final segment ids with the epoch", () => {
+    expect(
+      withEpochSegmentId(
+        { type: "partial", segmentId: "seg-1", sourceText: "a" },
+        2,
+      ),
+    ).toEqual({ type: "partial", segmentId: "e2:seg-1", sourceText: "a" });
+
+    expect(
+      withEpochSegmentId(
+        {
+          type: "final",
+          segmentId: "seg-1",
+          sourceText: "a",
+          translatedText: "b",
+          startTimeMs: 0,
+          endTimeMs: 1,
+        },
+        1,
+      ),
+    ).toEqual({
+      type: "final",
+      segmentId: "e1:seg-1",
+      sourceText: "a",
+      translatedText: "b",
+      startTimeMs: 0,
+      endTimeMs: 1,
+    });
+  });
+
+  it("passes language and error events through unchanged", () => {
+    const language = {
+      type: "language",
+      sourceLanguage: "en",
+      targetLanguage: "zh-CN",
+    } as const;
+    expect(withEpochSegmentId(language, 3)).toBe(language);
+  });
+});
