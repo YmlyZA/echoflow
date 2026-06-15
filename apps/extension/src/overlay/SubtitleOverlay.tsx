@@ -11,6 +11,7 @@ export interface SubtitleOverlayProps {
   segment: SubtitleDisplaySegment | null;
   fontSize: number;
   transientError?: TransientSubtitleError | null;
+  connectionStatus?: "reconnecting" | "connected" | null;
   hidden?: boolean;
   position?: {
     x: number;
@@ -28,6 +29,7 @@ export function SubtitleOverlay({
   segment,
   fontSize,
   transientError = null,
+  connectionStatus = null,
   hidden = false,
   position,
   onStop,
@@ -120,6 +122,12 @@ export function SubtitleOverlay({
             {segment?.translatedText ?? ""}
           </p>
         </div>
+
+        {connectionStatus === "reconnecting" ? (
+          <div className="echoflow-reconnecting" role="status">
+            重连中…
+          </div>
+        ) : null}
 
         {transientError ? (
           <div className="echoflow-error" role="status">
@@ -232,6 +240,15 @@ function SubtitleOverlayStyles() {
         color: #ffd4d4;
         font: 600 12px/1.2 system-ui, sans-serif;
         overflow-wrap: anywhere;
+      }
+
+      .echoflow-reconnecting {
+        min-height: 20px;
+        padding: 4px 8px;
+        border-radius: 6px;
+        background: rgba(214, 158, 46, 0.24);
+        color: #ffe7b3;
+        font: 600 12px/1.2 system-ui, sans-serif;
       }
 
       .echoflow-restore {

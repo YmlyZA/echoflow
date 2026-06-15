@@ -56,3 +56,29 @@ describe("SubtitleOverlay", () => {
     expect(html).toContain("Speech recognition provider unavailable");
   });
 });
+
+describe("SubtitleOverlay connection status", () => {
+  it("renders a reconnecting banner", () => {
+    const html = renderToStaticMarkup(
+      <SubtitleOverlay
+        segment={null}
+        fontSize={24}
+        connectionStatus="reconnecting"
+      />
+    );
+
+    expect(html).toContain("重连中");
+  });
+
+  it("hides the banner when connected", () => {
+    const html = renderToStaticMarkup(
+      <SubtitleOverlay
+        segment={null}
+        fontSize={24}
+        connectionStatus="connected"
+      />
+    );
+
+    expect(html).not.toContain("重连中");
+  });
+});
