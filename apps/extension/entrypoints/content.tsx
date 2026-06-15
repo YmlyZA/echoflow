@@ -4,7 +4,6 @@ import { useEffect, useReducer, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   isRuntimeMessage,
-  type ServerEventMessage,
   type StopSessionMessage
 } from "../src/messaging/messages";
 import { SubtitleOverlay } from "../src/overlay/SubtitleOverlay";
@@ -24,6 +23,9 @@ function EchoFlowMount() {
   const [position, setPosition] = useState<{ x: number; y: number } | null>(
     null
   );
+  const [connectionStatus, setConnectionStatus] = useState<
+    "reconnecting" | "connected" | null
+  >(null);
 
   useEffect(() => {
     function handleServerEvent(event: Event) {
@@ -43,15 +45,22 @@ function EchoFlowMount() {
 
   useEffect(() => {
     function handleRuntimeMessage(message: unknown) {
-      if (!isRuntimeMessage(message) || message.type !== "SERVER_EVENT") {
+      if (!isRuntimeMessage(message)) {
         return;
       }
 
-      window.dispatchEvent(
-        new CustomEvent("echoflow:server-event", {
-          detail: (message as ServerEventMessage).event
-        })
-      );
+      if (message.type === "SERVER_EVENT") {
+        window.dispatchEvent(
+          new CustomEvent("echoflow:server-event", {
+            detail: message.event
+          })
+        );
+        return;
+      }
+
+      if (message.type === "CONNECTION_STATUS") {
+        setConnectionStatus(message.status);
+      }
     }
 
     function handleStopSubtitles() {
@@ -115,6 +124,7 @@ function EchoFlowMount() {
     <SubtitleOverlay
       segment={subtitleState.currentSegment}
       transientError={subtitleState.transientError}
+      connectionStatus={connectionStatus}
       fontSize={fontSize}
       hidden={hidden}
       position={position ?? undefined}
