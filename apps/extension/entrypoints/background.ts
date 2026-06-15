@@ -1,6 +1,6 @@
-import { finalEventToSegment } from "../src/history/segmentMapping";
 import {
   isRuntimeMessage,
+  type ConnectionStatusMessage,
   type RuntimeMessage,
   type SessionErrorMessage,
   type SessionStartedMessage,
@@ -9,18 +9,40 @@ import {
   type StopSessionMessage
 } from "../src/messaging/messages";
 import { createHistoryStore } from "../src/history/historyStore";
+import { finalEventToSegment } from "../src/history/segmentMapping";
 import { loadSettings, validateSettings } from "../src/settings/settings";
 import {
   createInitialSessionState,
-  reduceSessionState
+  reduceSessionState,
+  type SessionState
 } from "../src/session/sessionState";
+import { loadPersistedState, persistState } from "../src/session/sessionStore";
 
 const OFFSCREEN_DOCUMENT_PATH = "offscreen.html";
 const CONTENT_SCRIPT_PATH = "content-scripts/content.js";
 
 const historyStore = createHistoryStore();
-let sessionState = createInitialSessionState();
+let sessionState: SessionState = createInitialSessionState();
 let detectedSourceLanguage = "unknown";
+let stateLoaded: Promise<void> | undefined;
+
+function ensureStateLoaded(): Promise<void> {
+  stateLoaded ??= loadPersistedState().then((persisted) => {
+    sessionState = persisted.sessionState;
+    detectedSourceLanguage = persisted.detectedSourceLanguage;
+  });
+  return stateLoaded;
+}
+
+async function commitSessionState(next: SessionState): Promise<void> {
+  sessionState = next;
+  await persistState({ sessionState, detectedSourceLanguage });
+}
+
+async function commitDetectedSourceLanguage(language: string): Promise<void> {
+  detectedSourceLanguage = language;
+  await persistState({ sessionState, detectedSourceLanguage });
+}
 
 export default defineBackground(() => {
   chrome.runtime.onInstalled.addListener(() => {
@@ -41,6 +63,8 @@ export default defineBackground(() => {
 });
 
 async function handleActionClick(tab: chrome.tabs.Tab): Promise<void> {
+  await ensureStateLoaded();
+
   if (sessionState.status === "connecting" || sessionState.status === "running") {
     await stopSession("action_click");
     return;
@@ -75,15 +99,17 @@ async function startSession(tab: chrome.tabs.Tab): Promise<void> {
       targetLanguage: settings.targetLanguage
     });
     localSessionId = localSession.id;
-    detectedSourceLanguage = "unknown";
+    await commitDetectedSourceLanguage("unknown");
 
-    sessionState = reduceSessionState(sessionState, {
-      type: "START_CONNECTING",
-      localSessionId: localSession.id,
-      tabId: tab.id,
-      streamId: "",
-      settings
-    });
+    await commitSessionState(
+      reduceSessionState(sessionState, {
+        type: "START_CONNECTING",
+        localSessionId: localSession.id,
+        tabId: tab.id,
+        streamId: "",
+        settings
+      })
+    );
 
     await ensureOffscreenDocument();
 
@@ -91,10 +117,12 @@ async function startSession(tab: chrome.tabs.Tab): Promise<void> {
       targetTabId: tab.id
     });
 
-    sessionState = reduceSessionState(sessionState, {
-      type: "STREAM_READY",
-      streamId,
-    });
+    await commitSessionState(
+      reduceSessionState(sessionState, {
+        type: "STREAM_READY",
+        streamId
+      })
+    );
 
     await setBadge("...");
 
@@ -120,12 +148,16 @@ async function startSession(tab: chrome.tabs.Tab): Promise<void> {
 async function stopSession(reason: string): Promise<void> {
   if (sessionState.status !== "connecting" && sessionState.status !== "running") {
     await clearBadge();
-    sessionState = reduceSessionState(sessionState, { type: "STOP_COMPLETED" });
+    await commitSessionState(
+      reduceSessionState(sessionState, { type: "STOP_COMPLETED" })
+    );
     return;
   }
 
   const localSessionId = sessionState.localSessionId;
-  sessionState = reduceSessionState(sessionState, { type: "STOP_REQUESTED" });
+  await commitSessionState(
+    reduceSessionState(sessionState, { type: "STOP_REQUESTED" })
+  );
 
   await chrome.runtime.sendMessage({
     type: "STOP_SESSION",
@@ -134,10 +166,14 @@ async function stopSession(reason: string): Promise<void> {
   } satisfies StopSessionMessage);
 
   await clearBadge();
-  sessionState = reduceSessionState(sessionState, { type: "STOP_COMPLETED" });
+  await commitSessionState(
+    reduceSessionState(sessionState, { type: "STOP_COMPLETED" })
+  );
 }
 
 async function handleRuntimeMessage(message: RuntimeMessage): Promise<void> {
+  await ensureStateLoaded();
+
   switch (message.type) {
     case "STOP_SESSION":
       await stopSession(message.reason ?? "content_request");
@@ -150,6 +186,9 @@ async function handleRuntimeMessage(message: RuntimeMessage): Promise<void> {
       return;
     case "SERVER_EVENT":
       await forwardServerEvent(message);
+      return;
+    case "CONNECTION_STATUS":
+      await forwardConnectionStatus(message);
       return;
     case "OFFSCREEN_READY":
     case "START_SESSION":
@@ -167,23 +206,27 @@ async function handleSessionStarted(
     return;
   }
 
-  sessionState = reduceSessionState(sessionState, {
-    type: "SESSION_STARTED",
-    remoteSessionId: message.remoteSessionId
-  });
+  await commitSessionState(
+    reduceSessionState(sessionState, {
+      type: "SESSION_STARTED",
+      remoteSessionId: message.remoteSessionId
+    })
+  );
 
   await setBadge("ON");
 }
 
 async function handleSessionError(message: SessionErrorMessage): Promise<void> {
   if (sessionState.status !== "idle") {
-    sessionState = reduceSessionState(sessionState, {
-      type: "SESSION_ERROR",
-      error: {
-        code: message.code,
-        message: message.message
-      }
-    });
+    await commitSessionState(
+      reduceSessionState(sessionState, {
+        type: "SESSION_ERROR",
+        error: {
+          code: message.code,
+          message: message.message
+        }
+      })
+    );
   }
 
   const localSessionId =
@@ -209,7 +252,7 @@ async function forwardServerEvent(message: ServerEventMessage): Promise<void> {
   }
 
   if (message.event.type === "language") {
-    detectedSourceLanguage = message.event.sourceLanguage;
+    await commitDetectedSourceLanguage(message.event.sourceLanguage);
     await historyStore.updateSessionLanguages(message.localSessionId, {
       sourceLanguage: message.event.sourceLanguage
     });
@@ -231,6 +274,20 @@ async function forwardServerEvent(message: ServerEventMessage): Promise<void> {
     localSessionId: message.localSessionId,
     event: message.event
   });
+}
+
+async function forwardConnectionStatus(
+  message: ConnectionStatusMessage
+): Promise<void> {
+  if (
+    sessionState.status === "idle" ||
+    message.localSessionId !== sessionState.localSessionId
+  ) {
+    return;
+  }
+
+  await setBadge(message.status === "reconnecting" ? "..." : "ON");
+  await sendMessageToTab(sessionState.tabId, message);
 }
 
 async function injectRuntimeContentScript(tabId: number): Promise<void> {
@@ -260,7 +317,7 @@ async function ensureOffscreenDocument(): Promise<void> {
 
 async function sendMessageToTab(
   tabId: number,
-  message: Extract<RuntimeMessage, { type: "SERVER_EVENT" }>
+  message: Extract<RuntimeMessage, { type: "SERVER_EVENT" | "CONNECTION_STATUS" }>
 ): Promise<void> {
   await chrome.tabs.sendMessage(tabId, message);
 }
