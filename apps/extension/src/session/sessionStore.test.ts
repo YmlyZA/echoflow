@@ -33,4 +33,25 @@ describe("sessionStore", () => {
       detectedSourceLanguage: "unknown",
     });
   });
+
+  it("normalizes a persisted stopping state to idle on load", async () => {
+    const storage = createInMemorySessionStorage();
+    await persistState(
+      {
+        sessionState: {
+          status: "stopping",
+          localSessionId: "local-1",
+          tabId: 7,
+          streamId: "stream-1",
+          targetLanguage: "zh-CN",
+        },
+        detectedSourceLanguage: "en",
+      },
+      storage,
+    );
+
+    const loaded = await loadPersistedState(storage);
+    expect(loaded.sessionState).toEqual({ status: "idle" });
+    expect(loaded.detectedSourceLanguage).toBe("en");
+  });
 });

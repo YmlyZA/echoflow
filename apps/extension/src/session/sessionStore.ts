@@ -19,12 +19,21 @@ export async function loadPersistedState(
     SESSION_STATE_STORAGE_KEY,
   );
 
-  return (
-    stored ?? {
+  if (stored === undefined) {
+    return {
       sessionState: createInitialSessionState(),
       detectedSourceLanguage: "unknown",
-    }
-  );
+    };
+  }
+
+  // A persisted "stopping" means the worker was killed mid-stop and the
+  // STOP_COMPLETED transition never ran. Recover to idle, otherwise the action
+  // button is permanently deadlocked (handleActionClick early-returns on it).
+  if (stored.sessionState.status === "stopping") {
+    return { ...stored, sessionState: createInitialSessionState() };
+  }
+
+  return stored;
 }
 
 export async function persistState(
