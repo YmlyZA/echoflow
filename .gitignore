@@ -10,3 +10,4 @@ playwright-report/
 !.env.example
 *.log
 .omx/
+.DS_Store
