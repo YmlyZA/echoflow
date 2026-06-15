@@ -1,5 +1,6 @@
 import {
   isRuntimeMessage,
+  type ConnectionStatusMessage,
   type ServerEventMessage,
   type SessionErrorMessage,
   type SessionStartedMessage,
@@ -75,6 +76,17 @@ async function startSession(message: StartSessionMessage): Promise<void> {
           code: error.code,
           message: error.message
         } satisfies SessionErrorMessage);
+
+        if (error.code === "connection_lost") {
+          void stopActiveSession("connection_lost");
+        }
+      },
+      onStatus: (status) => {
+        void chrome.runtime.sendMessage({
+          type: "CONNECTION_STATUS",
+          localSessionId: message.localSessionId,
+          status
+        } satisfies ConnectionStatusMessage);
       }
     });
     const pipeline = new OffscreenAudioPipeline({
