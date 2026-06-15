@@ -1,5 +1,7 @@
 import type { ServerEvent } from "@echoflow/protocol";
 
+const MAX_FINALIZED_TRACKED = 50;
+
 export type SubtitleSegmentStatus = "partial" | "final";
 
 export interface SubtitleDisplaySegment {
@@ -106,5 +108,5 @@ function appendFinalizedSegmentId(
     return finalizedSegmentIds;
   }
 
-  return [...finalizedSegmentIds, segmentId];
+  return [...finalizedSegmentIds, segmentId].slice(-MAX_FINALIZED_TRACKED);
 }

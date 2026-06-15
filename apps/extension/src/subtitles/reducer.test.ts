@@ -136,3 +136,30 @@ describe("reducer multi-segment flow", () => {
     expect(state.finalizedSegmentIds).toContain("seg-1");
   });
 });
+
+describe("reducer bounds finalized ids", () => {
+  it("keeps at most the most recent 50 finalized segment ids", () => {
+    let state = createInitialSubtitleState();
+    for (let index = 0; index < 60; index += 1) {
+      state = reduceSubtitleEvent(state, {
+        type: "final",
+        segmentId: `seg-${index}`,
+        sourceText: `s${index}`,
+        translatedText: `t${index}`,
+        startTimeMs: index,
+        endTimeMs: index + 1,
+      });
+    }
+
+    expect(state.finalizedSegmentIds).toHaveLength(50);
+    expect(state.finalizedSegmentIds).toContain("seg-59");
+    expect(state.finalizedSegmentIds).not.toContain("seg-0");
+
+    const late = reduceSubtitleEvent(state, {
+      type: "partial",
+      segmentId: "seg-59",
+      sourceText: "late",
+    });
+    expect(late).toBe(state);
+  });
+});
