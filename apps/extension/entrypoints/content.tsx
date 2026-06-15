@@ -60,6 +60,11 @@ function EchoFlowMount() {
 
       if (message.type === "CONNECTION_STATUS") {
         setConnectionStatus(message.status);
+        return;
+      }
+
+      if (message.type === "SESSION_ERROR") {
+        setConnectionStatus(null);
       }
     }
 

@@ -240,6 +240,10 @@ async function handleSessionError(message: SessionErrorMessage): Promise<void> {
     });
   }
 
+  if (sessionState.status !== "idle") {
+    await sendMessageToTab(sessionState.tabId, message);
+  }
+
   await clearBadge();
 }
 
@@ -317,7 +321,10 @@ async function ensureOffscreenDocument(): Promise<void> {
 
 async function sendMessageToTab(
   tabId: number,
-  message: Extract<RuntimeMessage, { type: "SERVER_EVENT" | "CONNECTION_STATUS" }>
+  message: Extract<
+    RuntimeMessage,
+    { type: "SERVER_EVENT" | "CONNECTION_STATUS" | "SESSION_ERROR" }
+  >
 ): Promise<void> {
   await chrome.tabs.sendMessage(tabId, message);
 }
