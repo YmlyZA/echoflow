@@ -22,7 +22,10 @@ export interface SpeechRecognitionStream {
 }
 
 export type SpeechProvider = {
-  open(opts: { onSegment: (event: SegmentEvent) => void }): SpeechRecognitionStream;
+  open(opts: {
+    onSegment: (event: SegmentEvent) => void;
+    onError?: (error: Error) => void;
+  }): SpeechRecognitionStream;
 };
 
 export type TranslationInput = {
