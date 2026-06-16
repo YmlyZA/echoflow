@@ -5,6 +5,7 @@ import {
   createSpeechProvider,
   createTranslationProvider,
 } from "./providerFactory.js";
+import { VolcengineSpeechProvider } from "./volcengineSpeechProvider.js";
 import { VolcengineTranslationProvider } from "./volcengineTranslationProvider.js";
 
 describe("provider factories", () => {
@@ -18,14 +19,30 @@ describe("provider factories", () => {
   });
 
   it("fails explicitly when a domestic ASR provider is selected before its streaming adapter exists", () => {
-    expect(() => createSpeechProvider({ provider: "volcengine" })).toThrow(
-      "ASR provider volcengine is configured but not implemented yet",
-    );
     expect(() => createSpeechProvider({ provider: "aliyun" })).toThrow(
       "ASR provider aliyun is configured but not implemented yet",
     );
     expect(() => createSpeechProvider({ provider: "tencent" })).toThrow(
       "ASR provider tencent is configured but not implemented yet",
+    );
+  });
+
+  it("constructs the Volcengine speech provider when configured with credentials", () => {
+    const provider = createSpeechProvider({
+      provider: "volcengine",
+      volcengine: {
+        appKey: "app",
+        accessKey: "secret",
+        resourceId: "volc.bigasr.sauc.duration",
+        endpoint: "wss://example.test/asr",
+      },
+    });
+    expect(provider).toBeInstanceOf(VolcengineSpeechProvider);
+  });
+
+  it("throws when Volcengine ASR is selected without credentials", () => {
+    expect(() => createSpeechProvider({ provider: "volcengine" })).toThrow(
+      /VOLCENGINE_ASR_APP_KEY/,
     );
   });
 

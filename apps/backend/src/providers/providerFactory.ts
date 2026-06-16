@@ -5,6 +5,7 @@ import type {
   TranslationProviderConfig,
 } from "./providerConfig.js";
 import type { SpeechProvider, TranslationProvider } from "./types.js";
+import { VolcengineSpeechProvider } from "./volcengineSpeechProvider.js";
 import { VolcengineTranslationProvider } from "./volcengineTranslationProvider.js";
 
 export function createSpeechProvider(config: AsrProviderConfig): SpeechProvider {
@@ -12,8 +13,22 @@ export function createSpeechProvider(config: AsrProviderConfig): SpeechProvider 
     return new FakeSpeechProvider();
   }
 
+  if (config.provider === "volcengine") {
+    if (
+      config.volcengine === undefined ||
+      config.volcengine.appKey.trim() === "" ||
+      config.volcengine.accessKey.trim() === ""
+    ) {
+      throw new Error(
+        "VOLCENGINE_ASR_APP_KEY and VOLCENGINE_ASR_ACCESS_KEY are required when ECHOFLOW_ASR_PROVIDER=volcengine",
+      );
+    }
+
+    return new VolcengineSpeechProvider(config.volcengine);
+  }
+
   throw new Error(
-    `ASR provider ${config.provider} is configured but not implemented yet; use fake until the streaming adapter is added`,
+    `ASR provider ${config.provider} is configured but not implemented yet; use fake or volcengine`,
   );
 }
 
