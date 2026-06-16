@@ -121,4 +121,21 @@ describe("VolcengineSpeechProvider", () => {
     expect(last[1]).toBe((0b0010 << 4) | 0b0011); // AUDIO_ONLY | NEG_WITH_SEQUENCE
     expect(last.readInt32BE(4)).toBeLessThan(0);
   });
+
+  it("ignores frames and messages after close", () => {
+    const transport = createFakeTransport();
+    const provider = new VolcengineSpeechProvider(CONFIG, transport.factory);
+    const events: SegmentEvent[] = [];
+    const stream = provider.open({ onSegment: (event) => events.push(event) });
+    const sentAfterOpen = transport.sent.length; // the full client request
+
+    void stream.close();
+    stream.pushFrame({ data: Buffer.from([1, 2]), sequenceNumber: 0, timestampMs: 0 });
+    transport.emit(
+      serverResponse({ result: { utterances: [{ text: "late", definite: true }] } }),
+    );
+
+    expect(transport.sent).toHaveLength(sentAfterOpen); // pushFrame after close sent nothing
+    expect(events).toEqual([]); // late server message produced no events
+  });
 });
