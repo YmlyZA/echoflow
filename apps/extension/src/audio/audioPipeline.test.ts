@@ -3,7 +3,6 @@ import { OffscreenAudioPipeline, type AudioPipelineClient } from "./audioPipelin
 
 describe("OffscreenAudioPipeline", () => {
   beforeEach(() => {
-    FakeMediaRecorder.instances = [];
     FakeAudioContext.instances = [];
   });
 
@@ -17,10 +16,10 @@ describe("OffscreenAudioPipeline", () => {
       audio: {
         mandatory: {
           chromeMediaSource: "tab",
-          chromeMediaSourceId: "stream-1"
-        }
+          chromeMediaSourceId: "stream-1",
+        },
       },
-      video: false
+      video: false,
     });
   });
 
@@ -29,122 +28,122 @@ describe("OffscreenAudioPipeline", () => {
 
     await pipeline.start();
 
-    expect(FakeAudioContext.instances[0].source.connectedTo).toBe(
-      FakeAudioContext.instances[0].destination
-    );
+    const ctx = FakeAudioContext.instances[0]!;
+    expect(ctx.source.connections).toContain(ctx.destination);
   });
 
-  it("sends recorder chunks to the realtime client with sequence metadata", async () => {
+  it("loads the worklet module and taps the source into the worklet node", async () => {
+    const pipeline = createPipeline();
+
+    await pipeline.start();
+
+    const ctx = FakeAudioContext.instances[0]!;
+    expect(ctx.audioWorklet.addModule).toHaveBeenCalledWith(
+      "chrome-extension://test/pcm-encoder.worklet.js",
+    );
+    expect(ctx.source.connections).toContain(ctx.workletNode);
+  });
+
+  it("encodes worklet PCM frames and sends them with sequence metadata", async () => {
     const client = createClient();
     const pipeline = createPipeline({ client });
 
     await pipeline.start();
-    FakeMediaRecorder.instances[0].emitChunk(new Blob(["audio"]));
+    // 48 mono samples at the fake 48 kHz context rate -> 16 PCM samples at 16 kHz.
+    FakeAudioContext.instances[0]!.workletNode.emit(new Float32Array(48).fill(1));
 
-    expect(client.sendAudioFrame).toHaveBeenCalledWith(
-      expect.any(Blob),
-      expect.objectContaining({
-        sequenceNumber: 0,
-        timestampMs: expect.any(Number)
-      })
+    expect(client.sendAudioFrame).toHaveBeenCalledTimes(1);
+    const [data, frame] = vi.mocked(client.sendAudioFrame).mock.calls[0]!;
+    expect(data).toBeInstanceOf(ArrayBuffer);
+    expect((data as ArrayBuffer).byteLength).toBe(16 * 2); // 16 Int16 samples
+    expect(frame).toEqual(
+      expect.objectContaining({ sequenceNumber: 0, timestampMs: expect.any(Number) }),
     );
   });
 
-  it("stops recorder, stream tracks, audio context, and realtime client", async () => {
+  it("stops the worklet node, stream tracks, audio context, and realtime client", async () => {
     const stream = createStream();
     const client = createClient();
     const pipeline = createPipeline({
       client,
-      getUserMedia: vi.fn(async () => stream)
+      getUserMedia: vi.fn(async () => stream),
     });
 
     await pipeline.start();
     await pipeline.stop("user_stop");
 
-    expect(FakeMediaRecorder.instances[0].state).toBe("inactive");
-    expect(stream.getTracks()[0].stop).toHaveBeenCalled();
-    expect(FakeAudioContext.instances[0].closed).toBe(true);
+    const ctx = FakeAudioContext.instances[0]!;
+    expect(ctx.workletNode.disconnect).toHaveBeenCalled();
+    expect(stream.getTracks()[0]!.stop).toHaveBeenCalled();
+    expect(ctx.closed).toBe(true);
     expect(client.stop).toHaveBeenCalledWith("user_stop");
   });
 });
 
 function createPipeline(
-  overrides: Partial<ConstructorParameters<typeof OffscreenAudioPipeline>[0]> = {}
+  overrides: Partial<ConstructorParameters<typeof OffscreenAudioPipeline>[0]> = {},
 ): OffscreenAudioPipeline {
   return new OffscreenAudioPipeline({
     streamId: "stream-1",
     client: createClient(),
     getUserMedia: vi.fn(async () => createStream()),
     AudioContextCtor: FakeAudioContext,
-    MediaRecorderCtor: FakeMediaRecorder,
-    chunkMs: 250,
+    workletModuleUrl: "chrome-extension://test/pcm-encoder.worklet.js",
     now: () => 1000,
-    ...overrides
+    ...overrides,
   });
 }
 
 function createClient(): AudioPipelineClient {
   return {
     sendAudioFrame: vi.fn(),
-    stop: vi.fn()
+    stop: vi.fn(),
   };
 }
 
 function createStream(): MediaStream {
   const tracks = [{ stop: vi.fn() }];
+  return { getTracks: () => tracks } as unknown as MediaStream;
+}
 
-  return {
-    getTracks: () => tracks
-  } as unknown as MediaStream;
+class FakeWorkletNode {
+  port: { onmessage: ((event: MessageEvent) => void) | null } = { onmessage: null };
+  connect = vi.fn();
+  disconnect = vi.fn();
+
+  emit(mono: Float32Array): void {
+    this.port.onmessage?.({ data: mono } as MessageEvent);
+  }
 }
 
 class FakeAudioContext {
   static instances: FakeAudioContext[] = [];
 
-  destination = {};
+  sampleRate = 48000;
+  destination = { id: "destination" };
+  workletNode = new FakeWorkletNode();
   source = {
-    connectedTo: undefined as unknown,
+    connections: [] as unknown[],
     connect: vi.fn((destination: unknown) => {
-      this.source.connectedTo = destination;
-    })
+      this.source.connections.push(destination);
+    }),
   };
+  audioWorklet = { addModule: vi.fn(async () => {}) };
   closed = false;
 
   constructor() {
     FakeAudioContext.instances.push(this);
   }
 
-  createMediaStreamSource(): { connect(destination: unknown): void } {
+  createMediaStreamSource(): typeof this.source {
     return this.source;
+  }
+
+  createWorkletNode(): FakeWorkletNode {
+    return this.workletNode;
   }
 
   async close(): Promise<void> {
     this.closed = true;
-  }
-}
-
-class FakeMediaRecorder {
-  static instances: FakeMediaRecorder[] = [];
-
-  state: RecordingState = "inactive";
-  ondataavailable: ((event: BlobEvent) => void) | null = null;
-
-  constructor(
-    readonly stream: MediaStream,
-    readonly options?: MediaRecorderOptions
-  ) {
-    FakeMediaRecorder.instances.push(this);
-  }
-
-  start(): void {
-    this.state = "recording";
-  }
-
-  stop(): void {
-    this.state = "inactive";
-  }
-
-  emitChunk(data: Blob): void {
-    this.ondataavailable?.({ data } as BlobEvent);
   }
 }
