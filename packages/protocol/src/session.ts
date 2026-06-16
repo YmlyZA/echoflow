@@ -6,6 +6,14 @@ export type AudioFormatMetadata = {
   bitsPerSample?: number;
 };
 
+export const CANONICAL_PCM_AUDIO_FORMAT: AudioFormatMetadata = {
+  mimeType: "audio/pcm",
+  codec: "pcm_s16le",
+  sampleRateHz: 16000,
+  channelCount: 1,
+  bitsPerSample: 16,
+};
+
 export type ClientCapabilities = {
   binaryAudioFrames: boolean;
   partialSubtitles: boolean;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isClientMessage, isStartSessionMessage } from "./session";
+import { isClientMessage, isStartSessionMessage, CANONICAL_PCM_AUDIO_FORMAT } from "./session";
 
 const validStartMessage = {
   type: "start",
@@ -66,5 +66,26 @@ describe("session protocol", () => {
         clientCapabilities: undefined,
       }),
     ).toBe(false);
+  });
+});
+
+describe("CANONICAL_PCM_AUDIO_FORMAT", () => {
+  it("describes 16 kHz / 16-bit / mono signed PCM", () => {
+    expect(CANONICAL_PCM_AUDIO_FORMAT).toEqual({
+      mimeType: "audio/pcm",
+      codec: "pcm_s16le",
+      sampleRateHz: 16000,
+      channelCount: 1,
+      bitsPerSample: 16,
+    });
+  });
+
+  it("is accepted on a start message by the client-message guard", () => {
+    expect(
+      isStartSessionMessage({
+        type: "start",
+        audioFormat: CANONICAL_PCM_AUDIO_FORMAT,
+      }),
+    ).toBe(true);
   });
 });
