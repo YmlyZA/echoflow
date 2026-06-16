@@ -14,6 +14,7 @@ describe("downmixToMono", () => {
       expect.closeTo(-0.2),
       expect.closeTo(0.3),
     ]);
+    expect(downmixToMono([mono])).toBe(mono);
   });
 
   it("averages multiple channels sample-by-sample", () => {
@@ -45,11 +46,12 @@ describe("resampleLinear", () => {
     expect(output.length).toBe(16);
   });
 
-  it("linearly interpolates between samples", () => {
-    // 4 samples at 4 Hz -> 2 samples at 2 Hz: picks positions 0 and 2.
+  it("linearly interpolates between samples at fractional positions", () => {
+    // 4 samples at 3 Hz -> 2 samples at 2 Hz. Output index 1 lands at input
+    // position 1.5, so the result is the midpoint of samples 1 and 2: 1.5.
     const input = new Float32Array([0, 1, 2, 3]);
-    const output = resampleLinear(input, 4, 2);
-    expect(Array.from(output)).toEqual([0, 2]);
+    const output = resampleLinear(input, 3, 2);
+    expect(Array.from(output)).toEqual([0, 1.5]);
   });
 });
 
