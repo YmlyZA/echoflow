@@ -71,8 +71,8 @@ test.describe("extension fake backend smoke", () => {
         captureBoundarySession.id as string,
       );
 
-      await expectOverlayText(page, "hello from fake speech provider");
-      await expectOverlayText(page, "你好，来自模拟语音提供器");
+      await expectOverlayText(page, "hello from echoflow");
+      await expectOverlayText(page, "[zh-CN] hello from echoflow");
 
       await expect
         .poll(() => readHistorySegments(serviceWorker), {
@@ -81,8 +81,8 @@ test.describe("extension fake backend smoke", () => {
         })
         .toContainEqual(
           expect.objectContaining({
-            sourceText: "hello from fake speech provider",
-            translatedText: "你好，来自模拟语音提供器",
+            sourceText: "hello from echoflow",
+            translatedText: "[zh-CN] hello from echoflow",
             status: "final",
           }),
         );
@@ -248,9 +248,11 @@ async function bridgeFakeBackendEvents(
               tabUrl: "http://127.0.0.1/test-video.html",
               targetLanguage: "zh-CN",
               audioFormat: {
-                mimeType: "audio/webm",
-                sampleRateHz: 48000,
-                channelCount: 2,
+                mimeType: "audio/pcm",
+                codec: "pcm_s16le",
+                sampleRateHz: 16000,
+                channelCount: 1,
+                bitsPerSample: 16,
               },
               clientCapabilities: {
                 binaryAudioFrames: true,
@@ -261,6 +263,21 @@ async function bridgeFakeBackendEvents(
               },
             }),
           );
+          // The streaming fake speech provider emits one script step per audio
+          // frame; pump a few so it reaches segment 1's final ("hello from
+          // echoflow" is 3 words -> partial, partial, final). The PCM bytes are
+          // ignored by the fake provider, so a zero-filled buffer is fine.
+          const silentPcmFrame = new ArrayBuffer(320);
+          for (let sequenceNumber = 0; sequenceNumber < 4; sequenceNumber += 1) {
+            socket.send(
+              JSON.stringify({
+                type: "audio_frame",
+                sessionId: localSessionId,
+                frame: { sequenceNumber, timestampMs: sequenceNumber * 100 },
+              }),
+            );
+            socket.send(silentPcmFrame);
+          }
         };
 
         socket.onmessage = (message) => {
