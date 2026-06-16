@@ -1,5 +1,7 @@
 import {
   DEFAULT_PROVIDER_CONFIG,
+  DEFAULT_VOLCENGINE_ASR_ENDPOINT,
+  DEFAULT_VOLCENGINE_ASR_RESOURCE_ID,
   DEFAULT_VOLCENGINE_TRANSLATION_ENDPOINT,
   DEFAULT_VOLCENGINE_TRANSLATION_RESOURCE_ID,
   type ProviderConfig,
@@ -57,6 +59,21 @@ function readProviderConfig(): ProviderConfig {
     asr: { provider: asrProvider },
     translation: { provider: translationProvider },
   };
+
+  if (
+    asrProvider === "volcengine" &&
+    process.env.VOLCENGINE_ASR_APP_KEY &&
+    process.env.VOLCENGINE_ASR_ACCESS_KEY
+  ) {
+    config.asr.volcengine = {
+      appKey: process.env.VOLCENGINE_ASR_APP_KEY,
+      accessKey: process.env.VOLCENGINE_ASR_ACCESS_KEY,
+      resourceId:
+        process.env.VOLCENGINE_ASR_RESOURCE_ID ?? DEFAULT_VOLCENGINE_ASR_RESOURCE_ID,
+      endpoint:
+        process.env.VOLCENGINE_ASR_ENDPOINT ?? DEFAULT_VOLCENGINE_ASR_ENDPOINT,
+    };
+  }
 
   if (translationProvider === "volcengine" && process.env.VOLCENGINE_API_KEY) {
     config.translation.volcengine = {

@@ -9,6 +9,10 @@ const ORIGINAL_ENV = {
   PORT: process.env.PORT,
   VOLCENGINE_API_KEY: process.env.VOLCENGINE_API_KEY,
   VOLCENGINE_TRANSLATION_ENDPOINT: process.env.VOLCENGINE_TRANSLATION_ENDPOINT,
+  VOLCENGINE_ASR_APP_KEY: process.env.VOLCENGINE_ASR_APP_KEY,
+  VOLCENGINE_ASR_ACCESS_KEY: process.env.VOLCENGINE_ASR_ACCESS_KEY,
+  VOLCENGINE_ASR_RESOURCE_ID: process.env.VOLCENGINE_ASR_RESOURCE_ID,
+  VOLCENGINE_ASR_ENDPOINT: process.env.VOLCENGINE_ASR_ENDPOINT,
 };
 
 describe("createConfig", () => {
@@ -101,6 +105,24 @@ describe("createConfig", () => {
 
     expect(() => createConfig()).toThrow("Invalid ECHOFLOW_ASR_PROVIDER value: not-real");
   });
+
+  it("reads Volcengine ASR credentials into the asr provider config", () => {
+    process.env.ECHOFLOW_ASR_PROVIDER = "volcengine";
+    process.env.VOLCENGINE_ASR_APP_KEY = "app-123";
+    process.env.VOLCENGINE_ASR_ACCESS_KEY = "secret-456";
+
+    const config = createConfig();
+
+    expect(config.providers.asr).toEqual({
+      provider: "volcengine",
+      volcengine: {
+        appKey: "app-123",
+        accessKey: "secret-456",
+        resourceId: "volc.bigasr.sauc.duration",
+        endpoint: "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel",
+      },
+    });
+  });
 });
 
 function restoreEnv(name: string, value: string | undefined): void {
@@ -123,4 +145,8 @@ afterEach(() => {
     "VOLCENGINE_TRANSLATION_ENDPOINT",
     ORIGINAL_ENV.VOLCENGINE_TRANSLATION_ENDPOINT,
   );
+  restoreEnv("VOLCENGINE_ASR_APP_KEY", ORIGINAL_ENV.VOLCENGINE_ASR_APP_KEY);
+  restoreEnv("VOLCENGINE_ASR_ACCESS_KEY", ORIGINAL_ENV.VOLCENGINE_ASR_ACCESS_KEY);
+  restoreEnv("VOLCENGINE_ASR_RESOURCE_ID", ORIGINAL_ENV.VOLCENGINE_ASR_RESOURCE_ID);
+  restoreEnv("VOLCENGINE_ASR_ENDPOINT", ORIGINAL_ENV.VOLCENGINE_ASR_ENDPOINT);
 });
