@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { RealtimeSession } from "./session.js";
 import type {
   AudioFrame,
@@ -51,6 +51,7 @@ class StubSpeechProvider implements SpeechProvider {
 
   open(opts: {
     onSegment: (event: SegmentEvent) => void;
+    onError?: (error: Error) => void;
   }): SpeechRecognitionStream {
     this.opened += 1;
     this.emit = opts.onSegment;
@@ -246,5 +247,38 @@ describe("RealtimeSession", () => {
       },
     ]);
     expect(socket.readyState).toBe(3);
+  });
+
+  it("forwards a speech-provider error as an error event", async () => {
+    const erroringSpeech: SpeechProvider = {
+      open: (opts) => {
+        queueMicrotask(() => opts.onError?.(new Error("connection lost")));
+        return {
+          pushFrame: () => {},
+          end: async () => {},
+          close: async () => {},
+        };
+      },
+    };
+
+    const socket = new FakeSocket();
+    const session = new RealtimeSession({
+      socket: socket as never,
+      speechProvider: erroringSpeech,
+      translationProvider: new StubTranslationProvider(),
+      defaultTargetLanguage: "zh-CN",
+    });
+    session.start();
+    socket.emit("message", startMessage(), false);
+
+    await vi.waitFor(() => {
+      expect(socket.events()).toContainEqual(
+        expect.objectContaining({
+          type: "error",
+          code: "provider_error",
+          message: "connection lost",
+        }),
+      );
+    });
   });
 });

@@ -105,6 +105,10 @@ export class RealtimeSession {
       onSegment: (event) => {
         this.enqueueSegment(event);
       },
+      onError: (error) => {
+        this.sendError("provider_error", error.message);
+        void this.close();
+      },
     });
   }
 
