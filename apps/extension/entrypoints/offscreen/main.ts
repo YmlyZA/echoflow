@@ -6,12 +6,9 @@ import {
   type SessionStartedMessage,
   type StartSessionMessage
 } from "../../src/messaging/messages";
-import {
-  DEFAULT_AUDIO_CHUNK_MS,
-  DEFAULT_AUDIO_MIME_TYPE,
-  OffscreenAudioPipeline
-} from "../../src/audio/audioPipeline";
+import { OffscreenAudioPipeline } from "../../src/audio/audioPipeline";
 import { RealtimeClient } from "../../src/realtime/realtimeClient";
+import { CANONICAL_PCM_AUDIO_FORMAT } from "@echoflow/protocol";
 import { buildRealtimeWebSocketUrl } from "../../src/settings/settings";
 
 chrome.runtime.sendMessage({ type: "OFFSCREEN_READY" });
@@ -57,11 +54,7 @@ async function startSession(message: StartSessionMessage): Promise<void> {
       tabTitle: tab.title,
       tabUrl: tab.url,
       targetLanguage: message.settings.targetLanguage,
-      audioFormat: {
-        mimeType: DEFAULT_AUDIO_MIME_TYPE,
-        sampleRateHz: 48000,
-        channelCount: 2
-      },
+      audioFormat: CANONICAL_PCM_AUDIO_FORMAT,
       onEvent: (event) => {
         void chrome.runtime.sendMessage({
           type: "SERVER_EVENT",
@@ -92,8 +85,7 @@ async function startSession(message: StartSessionMessage): Promise<void> {
     const pipeline = new OffscreenAudioPipeline({
       streamId: message.streamId,
       client,
-      chunkMs: DEFAULT_AUDIO_CHUNK_MS,
-      mimeType: DEFAULT_AUDIO_MIME_TYPE
+      workletModuleUrl: chrome.runtime.getURL("pcm-encoder.worklet.js")
     });
 
     activeSession = {
