@@ -116,7 +116,10 @@ export class OffscreenAudioPipeline {
     }
 
     const pcm = encodePcm16Mono([mono], inputRate, outputRate);
-    this.options.client.sendAudioFrame(pcm.buffer, {
+    // pcm is a freshly allocated Int16Array, so its buffer is always a plain
+    // ArrayBuffer (never SharedArrayBuffer); narrow the ArrayBufferLike type.
+    const buffer = pcm.buffer as ArrayBuffer;
+    this.options.client.sendAudioFrame(buffer, {
       sequenceNumber: this.sequenceNumber,
       timestampMs: this.now() - this.startedAtMs,
       durationMs: frameMs,
