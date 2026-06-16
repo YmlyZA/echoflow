@@ -81,6 +81,12 @@ Start the backend:
 pnpm --filter @echoflow/backend dev
 ```
 
+The backend exposes a health check at `/healthz` (there is no `/health` route):
+
+```bash
+curl http://127.0.0.1:8787/healthz   # expects {"ok":true}
+```
+
 Start the WXT extension dev server:
 
 ```bash
@@ -98,6 +104,8 @@ The Chrome MV3 build output is written to:
 ```text
 apps/extension/.output/chrome-mv3
 ```
+
+The extension captures tab audio as 16 kHz/16-bit/mono PCM (via an AudioWorklet) so the backend can feed it to any streaming ASR provider.
 
 ## Load the Extension in Chrome
 
