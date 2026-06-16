@@ -15,8 +15,16 @@ export type VolcengineTranslationConfig = {
   resourceId: string;
 };
 
+export type VolcengineAsrConfig = {
+  appKey: string;
+  accessKey: string;
+  resourceId: string;
+  endpoint: string;
+};
+
 export type AsrProviderConfig = {
   provider: AsrProviderName;
+  volcengine?: VolcengineAsrConfig;
 };
 
 export type TranslationProviderConfig = {
@@ -37,6 +45,10 @@ export const DEFAULT_PROVIDER_CONFIG: ProviderConfig = {
 export const DEFAULT_VOLCENGINE_TRANSLATION_ENDPOINT =
   "https://openspeech.bytedance.com/api/v3/machine_translation/matx_translate";
 export const DEFAULT_VOLCENGINE_TRANSLATION_RESOURCE_ID = "volc.speech.mt";
+
+export const DEFAULT_VOLCENGINE_ASR_ENDPOINT =
+  "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel";
+export const DEFAULT_VOLCENGINE_ASR_RESOURCE_ID = "volc.bigasr.sauc.duration";
 
 export function parseAsrProviderName(value: string | undefined): AsrProviderName {
   return parseProviderName(value, "ECHOFLOW_ASR_PROVIDER", ASR_PROVIDER_NAMES);
