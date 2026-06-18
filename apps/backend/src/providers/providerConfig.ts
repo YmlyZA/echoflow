@@ -20,6 +20,7 @@ export type VolcengineAsrConfig = {
   accessKey: string;
   resourceId: string;
   endpoint: string;
+  vadSegmentDurationMs?: number;
 };
 
 export type AsrProviderConfig = {
@@ -49,6 +50,7 @@ export const DEFAULT_VOLCENGINE_TRANSLATION_RESOURCE_ID = "volc.speech.mt";
 export const DEFAULT_VOLCENGINE_ASR_ENDPOINT =
   "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel";
 export const DEFAULT_VOLCENGINE_ASR_RESOURCE_ID = "volc.bigasr.sauc.duration";
+export const DEFAULT_VOLCENGINE_ASR_VAD_MS = 1000;
 
 export function parseAsrProviderName(value: string | undefined): AsrProviderName {
   return parseProviderName(value, "ECHOFLOW_ASR_PROVIDER", ASR_PROVIDER_NAMES);

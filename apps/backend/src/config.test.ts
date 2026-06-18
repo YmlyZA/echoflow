@@ -13,6 +13,7 @@ const ORIGINAL_ENV = {
   VOLCENGINE_ASR_ACCESS_KEY: process.env.VOLCENGINE_ASR_ACCESS_KEY,
   VOLCENGINE_ASR_RESOURCE_ID: process.env.VOLCENGINE_ASR_RESOURCE_ID,
   VOLCENGINE_ASR_ENDPOINT: process.env.VOLCENGINE_ASR_ENDPOINT,
+  VOLCENGINE_ASR_VAD_MS: process.env.VOLCENGINE_ASR_VAD_MS,
 };
 
 describe("createConfig", () => {
@@ -120,8 +121,20 @@ describe("createConfig", () => {
         accessKey: "secret-456",
         resourceId: "volc.bigasr.sauc.duration",
         endpoint: "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel",
+        vadSegmentDurationMs: 1000,
       },
     });
+  });
+
+  it("reads the Volcengine ASR VAD segment duration from env (default 1000)", () => {
+    process.env.ECHOFLOW_ASR_PROVIDER = "volcengine";
+    process.env.VOLCENGINE_ASR_APP_KEY = "app";
+    process.env.VOLCENGINE_ASR_ACCESS_KEY = "secret";
+
+    expect(createConfig().providers.asr.volcengine?.vadSegmentDurationMs).toBe(1000);
+
+    process.env.VOLCENGINE_ASR_VAD_MS = "800";
+    expect(createConfig().providers.asr.volcengine?.vadSegmentDurationMs).toBe(800);
   });
 });
 
@@ -149,4 +162,5 @@ afterEach(() => {
   restoreEnv("VOLCENGINE_ASR_ACCESS_KEY", ORIGINAL_ENV.VOLCENGINE_ASR_ACCESS_KEY);
   restoreEnv("VOLCENGINE_ASR_RESOURCE_ID", ORIGINAL_ENV.VOLCENGINE_ASR_RESOURCE_ID);
   restoreEnv("VOLCENGINE_ASR_ENDPOINT", ORIGINAL_ENV.VOLCENGINE_ASR_ENDPOINT);
+  restoreEnv("VOLCENGINE_ASR_VAD_MS", ORIGINAL_ENV.VOLCENGINE_ASR_VAD_MS);
 });

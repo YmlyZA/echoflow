@@ -2,6 +2,7 @@ import {
   DEFAULT_PROVIDER_CONFIG,
   DEFAULT_VOLCENGINE_ASR_ENDPOINT,
   DEFAULT_VOLCENGINE_ASR_RESOURCE_ID,
+  DEFAULT_VOLCENGINE_ASR_VAD_MS,
   DEFAULT_VOLCENGINE_TRANSLATION_ENDPOINT,
   DEFAULT_VOLCENGINE_TRANSLATION_RESOURCE_ID,
   type ProviderConfig,
@@ -45,6 +46,17 @@ function readPort(value: string | undefined, name: string): number | undefined {
   return parsed;
 }
 
+function readVadSegmentDurationMs(value: string | undefined): number {
+  if (value === undefined || value.trim() === "") {
+    return DEFAULT_VOLCENGINE_ASR_VAD_MS;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`Invalid VOLCENGINE_ASR_VAD_MS value: ${value}`);
+  }
+  return parsed;
+}
+
 function readProviderConfig(): ProviderConfig {
   const asrProvider = parseAsrProviderName(process.env.ECHOFLOW_ASR_PROVIDER);
   const translationProvider = parseTranslationProviderName(
@@ -72,6 +84,7 @@ function readProviderConfig(): ProviderConfig {
         process.env.VOLCENGINE_ASR_RESOURCE_ID ?? DEFAULT_VOLCENGINE_ASR_RESOURCE_ID,
       endpoint:
         process.env.VOLCENGINE_ASR_ENDPOINT ?? DEFAULT_VOLCENGINE_ASR_ENDPOINT,
+      vadSegmentDurationMs: readVadSegmentDurationMs(process.env.VOLCENGINE_ASR_VAD_MS),
     };
   }
 
