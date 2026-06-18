@@ -149,41 +149,31 @@ describe("RealtimeSession", () => {
       startTimeMs: 0,
       endTimeMs: 500,
     });
-    await flush();
 
-    const events = socket.events();
-    expect(translation.calls).toHaveLength(1);
-    expect(events.find((e) => e.type === "language")).toMatchObject({
-      sourceLanguage: "en",
-      targetLanguage: "zh-CN",
-    });
-    expect(events.find((e) => e.type === "partial")).toMatchObject({
-      segmentId: "seg-1",
-      sourceText: "hello",
-    });
-    expect(events.find((e) => e.type === "partial")).not.toHaveProperty(
-      "translatedText",
-    );
-    expect(events.find((e) => e.type === "final")).toEqual({
-      type: "final",
-      segmentId: "seg-1",
-      sourceText: "hello world",
-      translatedText: "T:hello world",
-      startTimeMs: 0,
-      endTimeMs: 500,
-    });
-    expect(events).toEqual([
-      { type: "language", sourceLanguage: "en", targetLanguage: "zh-CN" },
-      { type: "partial", segmentId: "seg-1", sourceText: "hello" },
-      {
+    // finals are dispatched by the async drainTranslations worker; use waitFor to
+    // observe all three events regardless of microtask interleaving order.
+    await vi.waitFor(() => {
+      const events = socket.events();
+      expect(translation.calls).toHaveLength(1);
+      expect(events).toContainEqual(
+        expect.objectContaining({ type: "language", sourceLanguage: "en", targetLanguage: "zh-CN" }),
+      );
+      expect(events).toContainEqual(
+        expect.objectContaining({ type: "partial", segmentId: "seg-1", sourceText: "hello" }),
+      );
+      expect(events).toContainEqual({
         type: "final",
         segmentId: "seg-1",
         sourceText: "hello world",
         translatedText: "T:hello world",
         startTimeMs: 0,
         endTimeMs: 500,
-      },
-    ]);
+      });
+    });
+
+    const events = socket.events();
+    expect(events.find((e) => e.type === "partial")).not.toHaveProperty("translatedText");
+    expect(events).toHaveLength(3);
   });
 
   it("flushes the stream and closes the socket on stop", async () => {
@@ -280,5 +270,71 @@ describe("RealtimeSession", () => {
         }),
       );
     });
+  });
+
+  it("delivers a partial without waiting on a slow translation", async () => {
+    const neverResolves: TranslationProvider = {
+      translate: () => new Promise<string>(() => {}),
+      close: () => {},
+    };
+    const socket = new FakeSocket();
+    const speech = new StubSpeechProvider();
+    const session = new RealtimeSession({
+      socket: socket as never,
+      speechProvider: speech,
+      translationProvider: neverResolves,
+      defaultTargetLanguage: "zh-CN",
+    });
+    session.start();
+    socket.emit("message", startMessage(), false);
+
+    speech.emit?.({ kind: "partial", segmentId: "seg-1", text: "hello", startTimeMs: 0 });
+
+    await vi.waitFor(() => {
+      expect(socket.events()).toContainEqual(
+        expect.objectContaining({ type: "partial", segmentId: "seg-1", sourceText: "hello" }),
+      );
+    });
+  });
+
+  it("drops a stale final's translation when a newer segment has arrived", async () => {
+    let resolveFirst: (value: string) => void = () => {};
+    const calls: string[] = [];
+    const translationProvider: TranslationProvider = {
+      translate: (input: TranslationInput) => {
+        calls.push(input.text);
+        if (calls.length === 1) {
+          return new Promise<string>((resolve) => {
+            resolveFirst = resolve;
+          });
+        }
+        return Promise.resolve(`[zh] ${input.text}`);
+      },
+      close: () => {},
+    };
+    const socket = new FakeSocket();
+    const speech = new StubSpeechProvider();
+    const session = new RealtimeSession({
+      socket: socket as never,
+      speechProvider: speech,
+      translationProvider,
+      defaultTargetLanguage: "zh-CN",
+    });
+    session.start();
+    socket.emit("message", startMessage(), false);
+
+    speech.emit?.({ kind: "final", segmentId: "seg-1", text: "one", startTimeMs: 0, endTimeMs: 1 });
+    // A newer segment arrives while seg-1 is still translating.
+    speech.emit?.({ kind: "partial", segmentId: "seg-2", text: "two", startTimeMs: 2 });
+    resolveFirst("[zh] one"); // seg-1 resolves AFTER seg-2 became the latest
+
+    await vi.waitFor(() => {
+      expect(socket.events()).toContainEqual(
+        expect.objectContaining({ type: "partial", segmentId: "seg-2" }),
+      );
+    });
+    expect(
+      socket.events().some((event) => event["type"] === "final" && event["segmentId"] === "seg-1"),
+    ).toBe(false);
   });
 });

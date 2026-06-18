@@ -27,6 +27,11 @@ export class RealtimeSession {
     | { sequenceNumber: number; timestampMs: number }
     | undefined;
   private tail: Promise<void> = Promise.resolve();
+  private latestSegmentId: string | undefined;
+  private pendingFinal:
+    | { segmentId: string; sourceText: string; startTimeMs: number; endTimeMs: number }
+    | undefined;
+  private translating = false;
 
   constructor(private readonly options: RealtimeSessionOptions) {
     this.targetLanguage = options.defaultTargetLanguage;
@@ -128,46 +133,89 @@ export class RealtimeSession {
   }
 
   private enqueueSegment(event: SegmentEvent): void {
+    if (event.kind === "partial" || event.kind === "final") {
+      this.latestSegmentId = event.segmentId;
+    }
+
+    if (event.kind === "final") {
+      this.pendingFinal = {
+        segmentId: event.segmentId,
+        sourceText: event.text,
+        startTimeMs: event.startTimeMs,
+        endTimeMs: event.endTimeMs,
+      };
+      void this.drainTranslations();
+      return;
+    }
+
+    // language + partial: ordered, immediate, never blocked by translation.
     this.tail = this.tail
-      .then(() => this.dispatchSegment(event))
+      .then(() => {
+        this.dispatchImmediate(event);
+      })
       .catch((error: unknown) => {
         this.sendError(getErrorCode(error), getErrorMessage(error));
       });
   }
 
-  private async dispatchSegment(event: SegmentEvent): Promise<void> {
-    switch (event.kind) {
-      case "language":
-        this.sourceLanguage = event.sourceLanguage;
-        this.send({
-          type: "language",
-          sourceLanguage: event.sourceLanguage,
-          targetLanguage: this.targetLanguage,
-        });
-        return;
-      case "partial":
-        this.send({
-          type: "partial",
-          segmentId: event.segmentId,
-          sourceText: event.text,
-        });
-        return;
-      case "final": {
-        const translatedText = await this.options.translationProvider.translate({
-          text: event.text,
-          sourceLanguage: this.sourceLanguage,
-          targetLanguage: this.targetLanguage,
-        });
-        this.send({
-          type: "final",
-          segmentId: event.segmentId,
-          sourceText: event.text,
-          translatedText,
-          startTimeMs: event.startTimeMs,
-          endTimeMs: event.endTimeMs,
-        });
-        return;
+  private dispatchImmediate(event: SegmentEvent): void {
+    if (event.kind === "language") {
+      this.sourceLanguage = event.sourceLanguage;
+      this.send({
+        type: "language",
+        sourceLanguage: event.sourceLanguage,
+        targetLanguage: this.targetLanguage,
+      });
+      return;
+    }
+    if (event.kind === "partial") {
+      this.send({
+        type: "partial",
+        segmentId: event.segmentId,
+        sourceText: event.text,
+      });
+    }
+  }
+
+  private async drainTranslations(): Promise<void> {
+    if (this.translating) {
+      return;
+    }
+    this.translating = true;
+    try {
+      while (this.pendingFinal !== undefined) {
+        const job = this.pendingFinal;
+        this.pendingFinal = undefined;
+
+        let translatedText: string;
+        try {
+          translatedText = await this.options.translationProvider.translate({
+            text: job.sourceText,
+            sourceLanguage: this.sourceLanguage,
+            targetLanguage: this.targetLanguage,
+          });
+        } catch (error: unknown) {
+          this.sendError(getErrorCode(error), getErrorMessage(error));
+          continue;
+        }
+
+        if (this.closed) {
+          return;
+        }
+        // Latest-wins: only show this final if no newer segment has appeared.
+        if (job.segmentId === this.latestSegmentId) {
+          this.send({
+            type: "final",
+            segmentId: job.segmentId,
+            sourceText: job.sourceText,
+            translatedText,
+            startTimeMs: job.startTimeMs,
+            endTimeMs: job.endTimeMs,
+          });
+        }
       }
+    } finally {
+      this.translating = false;
     }
   }
 
