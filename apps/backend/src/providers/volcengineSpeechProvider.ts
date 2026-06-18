@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
-import type { VolcengineAsrConfig } from "./providerConfig.js";
+import {
+  DEFAULT_VOLCENGINE_ASR_VAD_MS,
+  type VolcengineAsrConfig,
+} from "./providerConfig.js";
 import type {
   AudioFrame,
   SegmentEvent,
@@ -87,7 +90,14 @@ export class VolcengineSpeechProvider implements SpeechProvider {
       },
     );
 
-    transport.send(encodeFullClientRequest(buildRequestConfig(requestId)));
+    transport.send(
+      encodeFullClientRequest(
+        buildRequestConfig(
+          requestId,
+          this.config.vadSegmentDurationMs ?? DEFAULT_VOLCENGINE_ASR_VAD_MS,
+        ),
+      ),
+    );
 
     return {
       pushFrame(frame: AudioFrame): void {
@@ -116,11 +126,17 @@ export class VolcengineSpeechProvider implements SpeechProvider {
   }
 }
 
-function buildRequestConfig(uid: string): VolcengineAsrRequestConfig {
+function buildRequestConfig(uid: string, vadMs: number): VolcengineAsrRequestConfig {
   return {
     user: { uid },
     audio: { format: "pcm", sample_rate: 16000, bits: 16, channel: 1, codec: "raw" },
-    request: { model_name: "bigmodel", enable_punc: true },
+    request: {
+      model_name: "bigmodel",
+      enable_punc: true,
+      result_type: "single",
+      show_utterances: true,
+      vad_segment_duration: vadMs,
+    },
   };
 }
 

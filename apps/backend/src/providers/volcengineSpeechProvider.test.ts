@@ -1,4 +1,4 @@
-import { gzipSync } from "node:zlib";
+import { gunzipSync, gzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import type { SegmentEvent } from "./types.js";
 import { VolcengineSpeechProvider } from "./volcengineSpeechProvider.js";
@@ -120,6 +120,26 @@ describe("VolcengineSpeechProvider", () => {
     const last = transport.sent[transport.sent.length - 1]!;
     expect(last[1]).toBe((0b0010 << 4) | 0b0011); // AUDIO_ONLY | NEG_WITH_SEQUENCE
     expect(last.readInt32BE(4)).toBeLessThan(0);
+  });
+
+  it("requests incremental VAD-segmented results in the full client request", () => {
+    const transport = createFakeTransport();
+    const provider = new VolcengineSpeechProvider(
+      { ...CONFIG, vadSegmentDurationMs: 800 },
+      transport.factory,
+    );
+    provider.open({ onSegment: () => {} });
+
+    const frame = transport.sent[0]!;
+    const size = frame.readUInt32BE(8);
+    const config = JSON.parse(gunzipSync(frame.subarray(12, 12 + size)).toString("utf8"));
+    expect(config.request).toEqual({
+      model_name: "bigmodel",
+      enable_punc: true,
+      result_type: "single",
+      show_utterances: true,
+      vad_segment_duration: 800,
+    });
   });
 
   it("ignores frames and messages after close", () => {

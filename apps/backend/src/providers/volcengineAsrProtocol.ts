@@ -25,7 +25,13 @@ export type VolcengineAsrRequestConfig = {
     channel: number;
     codec: string;
   };
-  request: { model_name: string; enable_punc: boolean };
+  request: {
+    model_name: string;
+    enable_punc: boolean;
+    result_type?: string;
+    show_utterances?: boolean;
+    vad_segment_duration?: number;
+  };
 };
 
 export type VolcengineUtterance = {
