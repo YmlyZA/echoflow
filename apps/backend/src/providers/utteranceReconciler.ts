@@ -1,41 +1,37 @@
 import type { SegmentEvent } from "./types.js";
 import type { VolcengineUtterance } from "./volcengineAsrProtocol.js";
 
+// SeedASR (result_type:"single") streams a tentative partial tail (multi-sentence,
+// unstable punctuation) and flags an utterance `definite` once a sentence is
+// confirmed. We surface confirmed sentences only: one final per new `definite`
+// utterance, keyed on our own monotonic ordinal. Partials are ignored.
 export class UtteranceReconciler {
-  private readonly finalized = new Set<number>();
-  private readonly lastPartialText = new Map<number, string>();
+  private ordinal = 0;
+  private lastFinalText = "";
 
   reconcile(utterances: VolcengineUtterance[]): SegmentEvent[] {
     const events: SegmentEvent[] = [];
 
-    utterances.forEach((utterance, index) => {
-      if (this.finalized.has(index)) {
-        return;
+    for (const utterance of utterances) {
+      if (utterance.definite !== true) {
+        continue;
       }
-
-      const segmentId = `seg-${index + 1}`;
       const text = utterance.text ?? "";
+      if (text === "" || text === this.lastFinalText) {
+        continue;
+      }
+
+      this.lastFinalText = text;
+      this.ordinal += 1;
       const startTimeMs = utterance.start_time ?? 0;
-
-      if (utterance.definite === true) {
-        this.finalized.add(index);
-        this.lastPartialText.delete(index);
-        events.push({
-          kind: "final",
-          segmentId,
-          text,
-          startTimeMs,
-          endTimeMs: utterance.end_time ?? startTimeMs,
-        });
-        return;
-      }
-
-      if (this.lastPartialText.get(index) === text) {
-        return;
-      }
-      this.lastPartialText.set(index, text);
-      events.push({ kind: "partial", segmentId, text, startTimeMs });
-    });
+      events.push({
+        kind: "final",
+        segmentId: `seg-${this.ordinal}`,
+        text,
+        startTimeMs,
+        endTimeMs: utterance.end_time ?? startTimeMs,
+      });
+    }
 
     return events;
   }

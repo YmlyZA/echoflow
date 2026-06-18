@@ -95,7 +95,6 @@ describe("VolcengineSpeechProvider", () => {
 
     expect(events).toEqual([
       { kind: "language", sourceLanguage: "auto" },
-      { kind: "partial", segmentId: "seg-1", text: "hello", startTimeMs: 0 },
       { kind: "final", segmentId: "seg-1", text: "hello", startTimeMs: 0, endTimeMs: 500 },
     ]);
   });
