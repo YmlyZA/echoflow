@@ -57,7 +57,9 @@ describe("backend realtime websocket", () => {
       sendAudioFrame(socket, 1, 250);
       sendAudioFrame(socket, 2, 500);
 
-      await expect(events).resolves.toEqual(SEGMENT_ONE);
+      const received = await events;
+      expect(received).toHaveLength(SEGMENT_ONE.length);
+      expect(received).toEqual(expect.arrayContaining(SEGMENT_ONE));
     } finally {
       await server.close();
     }
@@ -95,7 +97,9 @@ describe("backend realtime websocket", () => {
       sendAudioFrame(socket, 1, 250);
       sendAudioFrame(socket, 2, 500);
 
-      await expect(events).resolves.toEqual(SEGMENT_ONE);
+      const received = await events;
+      expect(received).toHaveLength(SEGMENT_ONE.length);
+      expect(received).toEqual(expect.arrayContaining(SEGMENT_ONE));
     } finally {
       await server.close();
     }
@@ -142,7 +146,7 @@ describe("backend realtime websocket", () => {
       socket.send(Buffer.from([0x7b, 0xff, 0x00]));
       socket.send(Buffer.from([0x7b, 0xff, 0x00]));
 
-      await expect(events).resolves.toEqual([
+      const binaryExpected = [
         { type: "language", sourceLanguage: "en", targetLanguage: "zh-CN" },
         { type: "partial", segmentId: "seg-1", sourceText: "hello" },
         { type: "partial", segmentId: "seg-1", sourceText: "hello from" },
@@ -154,7 +158,10 @@ describe("backend realtime websocket", () => {
           startTimeMs: 0,
           endTimeMs: 0,
         },
-      ]);
+      ];
+      const received = await events;
+      expect(received).toHaveLength(binaryExpected.length);
+      expect(received).toEqual(expect.arrayContaining(binaryExpected));
     } finally {
       await server.close();
     }

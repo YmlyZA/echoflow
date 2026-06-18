@@ -92,6 +92,8 @@ export class RealtimeSession {
         };
         return;
       case "stop":
+        // In-flight translation (drainTranslations) is intentionally not awaited
+        // on stop — a trailing final's translation may be dropped. See spec.
         if (this.stream !== undefined) {
           await this.stream.end();
         }
