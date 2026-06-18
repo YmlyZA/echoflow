@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   type FetchLike,
+  toVolcengineLanguageCode,
   VolcengineTranslationProvider,
 } from "./volcengineTranslationProvider.js";
 
@@ -52,7 +53,7 @@ describe("VolcengineTranslationProvider", () => {
         },
         body: JSON.stringify({
           source_language: "en",
-          target_language: "zh-CN",
+          target_language: "zh",
           text_list: ["hello world"],
         }),
       },
@@ -85,7 +86,7 @@ describe("VolcengineTranslationProvider", () => {
 
     const [, init] = fetch.mock.calls[0] ?? [];
     expect(JSON.parse(String(init?.body))).toEqual({
-      target_language: "zh-CN",
+      target_language: "zh",
       text_list: ["hello"],
     });
   });
@@ -116,5 +117,39 @@ describe("VolcengineTranslationProvider", () => {
         targetLanguage: "zh-CN",
       }),
     ).rejects.toThrow("Volcengine translation failed: 40000000 invalid api key");
+  });
+
+  it("maps the canonical target language to Volcengine's code set", async () => {
+    const fetch = vi.fn<FetchLike>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            code: 20000000,
+            data: { translation_list: [{ translation: "x" }] },
+          }),
+        ),
+    );
+    const provider = new VolcengineTranslationProvider(
+      { apiKey: "k", endpoint: "https://example.test/mt", resourceId: "volc.speech.mt" },
+      fetch,
+    );
+
+    await provider.translate({ text: "hi", sourceLanguage: "auto", targetLanguage: "zh-CN" });
+    await provider.translate({ text: "hi", sourceLanguage: "auto", targetLanguage: "zh-TW" });
+    await provider.translate({ text: "hi", sourceLanguage: "auto", targetLanguage: "en" });
+
+    const targets = fetch.mock.calls.map(
+      ([, init]) => JSON.parse(String(init?.body)).target_language,
+    );
+    expect(targets).toEqual(["zh", "zh-Hant", "en"]);
+  });
+});
+
+describe("toVolcengineLanguageCode", () => {
+  it("maps Chinese region codes to Volcengine codes and passes others through", () => {
+    expect(toVolcengineLanguageCode("zh-CN")).toBe("zh");
+    expect(toVolcengineLanguageCode("zh-TW")).toBe("zh-Hant");
+    expect(toVolcengineLanguageCode("en")).toBe("en");
+    expect(toVolcengineLanguageCode("ja")).toBe("ja");
   });
 });

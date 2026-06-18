@@ -66,14 +66,27 @@ export class VolcengineTranslationProvider implements TranslationProvider {
   }
 }
 
+// The abstraction layer speaks a provider-neutral (BCP-47) language code set;
+// Volcengine MT uses ISO 639-1 / BCP-47 with its own spelling for Chinese. Map
+// only the codes that differ here, in the adapter — other providers bring their
+// own mapping. Unknown codes pass through unchanged.
+const VOLCENGINE_LANGUAGE_CODE_OVERRIDES: Record<string, string> = {
+  "zh-CN": "zh",
+  "zh-TW": "zh-Hant",
+};
+
+export function toVolcengineLanguageCode(code: string): string {
+  return VOLCENGINE_LANGUAGE_CODE_OVERRIDES[code] ?? code;
+}
+
 function buildRequestBody(input: TranslationInput): Record<string, unknown> {
   const body: Record<string, unknown> = {};
 
   if (input.sourceLanguage.trim() !== "" && input.sourceLanguage !== "auto") {
-    body.source_language = input.sourceLanguage;
+    body.source_language = toVolcengineLanguageCode(input.sourceLanguage);
   }
 
-  body.target_language = input.targetLanguage;
+  body.target_language = toVolcengineLanguageCode(input.targetLanguage);
   body.text_list = [input.text];
 
   return body;
