@@ -32,9 +32,15 @@ translation `<p>` (`SubtitleOverlay.tsx`). So no change is needed there.
 
 ## Desired UX (chosen)
 
-**Live-typing feel:** the source line updates live as speech arrives (partials);
-each sentence's translation appears a beat later, once the sentence finalizes.
-Short VAD (~1 s of silence) splits sentences.
+**Finalized whole-sentence subtitles** (revised 2026-06-18 after capturing real
+frames — see "Post-capture revision" below): show one **confirmed** sentence at a
+time, source + translation together, replacing the previous line. Cleanest,
+most movie-like, and most reliable. A short VAD reduces the per-sentence delay.
+
+(An earlier "live-typing" option — render the growing partial live — was
+rejected once the real data showed partials run 1–2 sentences ahead with
+*unstable, revising punctuation*, so only `definite` is a trustworthy sentence
+boundary.)
 
 ## Approach
 
@@ -78,46 +84,42 @@ previously-segmented sentences); `show_utterances:true` is required to receive
 `utterances` with `definite`; `vad_segment_duration` (default 3000 ms) is the
 silence threshold that splits sentences.
 
-## Section 2 — Reconciler for the incremental "single" model
+## Section 2 — Reconciler: finalized sentences only (post-capture revision)
 
-With `result_type:"single"`, each frame carries only the **current** sentence,
-so the existing index-keyed reconciler (built for cumulative `full`) is wrong.
-Rework `apps/backend/src/providers/utteranceReconciler.ts` around a **monotonic
-segment counter** driven by `definite` transitions, not the raw utterance index:
+**Real frames captured 2026-06-18** show that under `result_type:"single"` SeedASR
+streams a tentative partial *tail* that runs 1–2 sentences ahead with **unstable,
+revising punctuation** (e.g. `"…warnings? I except."` → `"…except that one, I
+think."`), and flags an utterance `definite:true` only when a sentence is
+**confirmed** (after which `single` mode drops it from later frames). So the only
+trustworthy sentence boundary is `definite`. Given the chosen finalized-only UX,
+the reconciler ignores partials entirely:
 
-- Maintain `currentOrdinal` (starts at 1), `lastEmittedText`, and
-  `currentFinalized` (bool).
-- For each frame, take the **active utterance** (the current in-progress sentence
-  in the frame).
-  - Active utterance not `definite`:
-    - If the previous segment was finalized, bump `currentOrdinal` and clear
-      `currentFinalized` (a new sentence has started).
-    - Emit a `partial` for `seg-${currentOrdinal}` when the text changed
-      (dedupe identical re-sends), carrying `startTimeMs`.
-  - Active utterance `definite`: emit exactly one `final` for
-    `seg-${currentOrdinal}` (with `startTimeMs`/`endTimeMs`), set
-    `currentFinalized = true`. Do not re-emit while it stays the active definite
-    utterance.
+`apps/backend/src/providers/utteranceReconciler.ts` emits **one `final` per newly
+confirmed `definite` utterance**:
 
-This is robust whether SeedASR resets the utterance index per sentence or keeps a
-global index — segment identity comes from our monotonic ordinal, not the vendor
-index.
+- Maintain a monotonic `ordinal` (starts at 0) and `lastFinalText`.
+- For each utterance in the frame, in order: skip unless `definite === true`;
+  skip empty text or text equal to `lastFinalText` (dedupe a re-sent confirmation);
+  otherwise set `lastFinalText`, increment `ordinal`, and emit a `final` for
+  `seg-${ordinal}` with `startTimeMs`/`endTimeMs`.
+- Never emit `partial` events.
 
-**Exact frame shape under `result_type:"single"` must be confirmed against the
-live endpoint before this reconciler is finalized** (see Section 5, task 0): how
-many utterances a frame carries, whether the index resets, and how `definite`
-appears. The model above is written to that observed behavior.
+This keys segment identity on our own monotonic ordinal (not the vendor index) and
+is robust to multi-utterance frames (a confirmed sentence + a trailing partial)
+since non-`definite` entries are ignored.
 
 ## Section 3 — Decoupled, latest-wins translation (`session.ts`)
 
 Replace the blocking serial translation with non-blocking delivery + a
 single-flight, latest-wins translator.
 
-- **Partials and the one-time `language` event emit immediately**, in arrival
-  order, never awaiting translation. The source line stays live and responsive.
+- The one-time `language` event emits immediately. (With the finalized-only
+  reconciler no `partial` events occur; the session keeps its partial-delivery
+  path so it stays provider-agnostic, but it is simply never exercised by the
+  Volcengine path.)
 - **Finals go through a single-flight latest-wins translator:**
   - The session tracks `latestSegmentId` — updated on every segment event it
-    receives from the reconciler (partial or final).
+    receives from the reconciler.
   - On a `final`, record `{ segmentId, sourceText, startTimeMs, endTimeMs }` as
     the pending translation, superseding any not-yet-started pending final.
   - A single worker translates the pending final. When it resolves, emit the
