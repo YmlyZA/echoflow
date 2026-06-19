@@ -9,7 +9,8 @@ import {
   type ExtensionSettings,
   type SettingsValidationErrors,
   SUBTITLE_MODE_OPTIONS,
-  TARGET_LANGUAGE_OPTIONS,
+  coerceTargetForMode,
+  targetOptionsForMode,
   loadSettings,
   saveSettings,
   validateSettings
@@ -136,7 +137,7 @@ function OptionsApp() {
             }
             style={styles.input}
           >
-            {TARGET_LANGUAGE_OPTIONS.map((language) => (
+            {targetOptionsForMode(settings.mode).map((language) => (
               <option key={language.value} value={language.value}>
                 {language.label}
               </option>
@@ -149,9 +150,14 @@ function OptionsApp() {
           Subtitle mode
           <select
             value={settings.mode}
-            onChange={(event) =>
-              updateSetting("mode", event.currentTarget.value as ExtensionSettings["mode"])
-            }
+            onChange={(event) => {
+              const nextMode = event.currentTarget.value as ExtensionSettings["mode"];
+              updateSetting("mode", nextMode);
+              updateSetting(
+                "targetLanguage",
+                coerceTargetForMode(nextMode, settings.targetLanguage)
+              );
+            }}
             style={styles.input}
           >
             {SUBTITLE_MODE_OPTIONS.map((option) => (
