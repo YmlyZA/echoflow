@@ -69,6 +69,22 @@ describe("session protocol", () => {
   });
 });
 
+describe("start mode field", () => {
+  it("accepts a start message with a valid mode", () => {
+    expect(isStartSessionMessage({ type: "start", mode: "pipeline" })).toBe(true);
+    expect(isStartSessionMessage({ type: "start", mode: "interpret" })).toBe(true);
+  });
+
+  it("accepts a start message with no mode", () => {
+    expect(isStartSessionMessage({ type: "start" })).toBe(true);
+  });
+
+  it("rejects a start message with an invalid mode", () => {
+    expect(isStartSessionMessage({ type: "start", mode: "turbo" })).toBe(false);
+    expect(isStartSessionMessage({ type: "start", mode: 1 })).toBe(false);
+  });
+});
+
 describe("CANONICAL_PCM_AUDIO_FORMAT", () => {
   it("describes 16 kHz / 16-bit / mono signed PCM", () => {
     expect(CANONICAL_PCM_AUDIO_FORMAT).toEqual({

@@ -1,3 +1,7 @@
+export type SubtitleMode = "pipeline" | "interpret";
+
+export const SUBTITLE_MODES: readonly SubtitleMode[] = ["pipeline", "interpret"];
+
 export type AudioFormatMetadata = {
   mimeType: string;
   codec?: string;
@@ -34,6 +38,7 @@ export type SessionHandshakeRequest = {
 
 export type StartSessionMessage = {
   type: "start";
+  mode?: SubtitleMode;
 } & Partial<SessionHandshakeRequest>;
 
 export type AudioFrameMetadata = {
@@ -103,6 +108,7 @@ export function isStartSessionMessage(
   }
 
   return (
+    isOptionalSubtitleMode(value, "mode") &&
     isOptionalString(value, "apiKey") &&
     isOptionalString(value, "sessionId") &&
     isOptionalString(value, "tabTitle") &&
@@ -131,6 +137,20 @@ function isStopSessionMessage(value: Record<string, unknown>): value is StopSess
 
 function isOptionalString(value: Record<string, unknown>, key: string): boolean {
   return !hasOwn(value, key) || typeof value[key] === "string";
+}
+
+function isOptionalSubtitleMode(
+  value: Record<string, unknown>,
+  key: string,
+): boolean {
+  if (!hasOwn(value, key)) {
+    return true;
+  }
+  const mode = value[key];
+  return (
+    typeof mode === "string" &&
+    (SUBTITLE_MODES as readonly string[]).includes(mode)
+  );
 }
 
 function isOptionalAudioFormat(
