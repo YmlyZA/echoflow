@@ -1,10 +1,7 @@
 import websocket from "@fastify/websocket";
 import Fastify, { type FastifyInstance } from "fastify";
 import { createConfig, type BackendConfigInput } from "./config.js";
-import {
-  createSpeechProvider,
-  createTranslationProvider,
-} from "./providers/providerFactory.js";
+import { createSubtitleSourceFactory } from "./realtime/subtitleSourceFactory.js";
 import { RealtimeSession } from "./realtime/session.js";
 
 export function createServer(input: BackendConfigInput = {}): FastifyInstance {
@@ -42,8 +39,7 @@ export function createServer(input: BackendConfigInput = {}): FastifyInstance {
       (socket) => {
         const session = new RealtimeSession({
           socket,
-          speechProvider: createSpeechProvider(config.providers.asr),
-          translationProvider: createTranslationProvider(config.providers.translation),
+          createSubtitleSource: createSubtitleSourceFactory(config.providers),
           defaultTargetLanguage: "zh-CN",
         });
 

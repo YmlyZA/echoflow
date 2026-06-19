@@ -4,34 +4,25 @@ import {
   isClientMessage,
 } from "@echoflow/protocol";
 import type { WebSocket } from "ws";
-import type {
-  SegmentEvent,
-  SpeechProvider,
-  SpeechRecognitionStream,
-  TranslationProvider,
-} from "../providers/types.js";
+import {
+  ModeUnavailableError,
+  type SubtitleSourceFactory,
+  type SubtitleSourceStream,
+} from "./subtitleSource.js";
 
 export type RealtimeSessionOptions = {
   socket: WebSocket;
-  speechProvider: SpeechProvider;
-  translationProvider: TranslationProvider;
+  createSubtitleSource: SubtitleSourceFactory;
   defaultTargetLanguage: string;
 };
 
 export class RealtimeSession {
   private targetLanguage: string;
-  private sourceLanguage = "unknown";
   private closed = false;
-  private stream: SpeechRecognitionStream | undefined;
+  private stream: SubtitleSourceStream | undefined;
   private pendingFrameMeta:
     | { sequenceNumber: number; timestampMs: number }
     | undefined;
-  private tail: Promise<void> = Promise.resolve();
-  private latestSegmentId: string | undefined;
-  private pendingFinal:
-    | { segmentId: string; sourceText: string; startTimeMs: number; endTimeMs: number }
-    | undefined;
-  private translating = false;
 
   constructor(private readonly options: RealtimeSessionOptions) {
     this.targetLanguage = options.defaultTargetLanguage;
@@ -43,7 +34,6 @@ export class RealtimeSession {
         this.sendError(getErrorCode(error), getErrorMessage(error));
       });
     });
-
     this.options.socket.on("close", () => {
       void this.close();
     });
@@ -54,10 +44,7 @@ export class RealtimeSession {
       return;
     }
     this.closed = true;
-    await Promise.all([
-      this.stream?.close(),
-      this.options.translationProvider.close(),
-    ]);
+    await this.stream?.close();
   }
 
   private async handleFrame(
@@ -67,7 +54,6 @@ export class RealtimeSession {
     if (this.closed) {
       return;
     }
-
     if (!isBinary && (typeof data === "string" || Buffer.isBuffer(data))) {
       const message = parseClientMessage(data);
       if (message !== undefined) {
@@ -75,7 +61,6 @@ export class RealtimeSession {
         return;
       }
     }
-
     this.pushAudio(data);
   }
 
@@ -83,7 +68,7 @@ export class RealtimeSession {
     switch (message.type) {
       case "start":
         this.targetLanguage = message.targetLanguage ?? this.targetLanguage;
-        this.openStream();
+        this.openSource(message.mode ?? "pipeline");
         return;
       case "audio_frame":
         this.pendingFrameMeta = {
@@ -92,25 +77,33 @@ export class RealtimeSession {
         };
         return;
       case "stop":
-        // In-flight translation (drainTranslations) is intentionally not awaited
-        // on stop — a trailing final's translation may be dropped. See spec.
         if (this.stream !== undefined) {
           await this.stream.end();
         }
-        await this.tail;
         await this.close();
         this.options.socket.close();
         return;
     }
   }
 
-  private openStream(): void {
+  private openSource(mode: "pipeline" | "interpret"): void {
     if (this.stream !== undefined) {
       return;
     }
-    this.stream = this.options.speechProvider.open({
-      onSegment: (event) => {
-        this.enqueueSegment(event);
+    let source;
+    try {
+      source = this.options.createSubtitleSource(mode, this.targetLanguage);
+    } catch (error: unknown) {
+      if (error instanceof ModeUnavailableError) {
+        this.sendError("mode_unavailable", error.message);
+        return;
+      }
+      this.sendError("provider_error", getErrorMessage(error));
+      return;
+    }
+    this.stream = source.open({
+      onEvent: (event) => {
+        this.send(event);
       },
       onError: (error) => {
         this.sendError("provider_error", error.message);
@@ -126,99 +119,11 @@ export class RealtimeSession {
     const meta = this.pendingFrameMeta ?? { sequenceNumber: 0, timestampMs: 0 };
     this.pendingFrameMeta = undefined;
     this.stream.pushFrame({
-      // ws delivers binary messages as Buffer (no binaryType override is set), so the
-      // RawData here is always a single Buffer, never ArrayBuffer or a Buffer[] fragment.
+      // ws delivers binary messages as a single Buffer (no binaryType override).
       data: data as Buffer,
       sequenceNumber: meta.sequenceNumber,
       timestampMs: meta.timestampMs,
     });
-  }
-
-  private enqueueSegment(event: SegmentEvent): void {
-    if (event.kind === "partial" || event.kind === "final") {
-      this.latestSegmentId = event.segmentId;
-    }
-
-    if (event.kind === "final") {
-      this.pendingFinal = {
-        segmentId: event.segmentId,
-        sourceText: event.text,
-        startTimeMs: event.startTimeMs,
-        endTimeMs: event.endTimeMs,
-      };
-      void this.drainTranslations();
-      return;
-    }
-
-    // language + partial: ordered, immediate, never blocked by translation.
-    this.tail = this.tail
-      .then(() => {
-        this.dispatchImmediate(event);
-      })
-      .catch((error: unknown) => {
-        this.sendError(getErrorCode(error), getErrorMessage(error));
-      });
-  }
-
-  private dispatchImmediate(event: SegmentEvent): void {
-    if (event.kind === "language") {
-      this.sourceLanguage = event.sourceLanguage;
-      this.send({
-        type: "language",
-        sourceLanguage: event.sourceLanguage,
-        targetLanguage: this.targetLanguage,
-      });
-      return;
-    }
-    if (event.kind === "partial") {
-      this.send({
-        type: "partial",
-        segmentId: event.segmentId,
-        sourceText: event.text,
-      });
-    }
-  }
-
-  private async drainTranslations(): Promise<void> {
-    if (this.translating) {
-      return;
-    }
-    this.translating = true;
-    try {
-      while (this.pendingFinal !== undefined) {
-        const job = this.pendingFinal;
-        this.pendingFinal = undefined;
-
-        let translatedText: string;
-        try {
-          translatedText = await this.options.translationProvider.translate({
-            text: job.sourceText,
-            sourceLanguage: this.sourceLanguage,
-            targetLanguage: this.targetLanguage,
-          });
-        } catch (error: unknown) {
-          this.sendError(getErrorCode(error), getErrorMessage(error));
-          continue;
-        }
-
-        if (this.closed) {
-          return;
-        }
-        // Latest-wins: only show this final if no newer segment has appeared.
-        if (job.segmentId === this.latestSegmentId) {
-          this.send({
-            type: "final",
-            segmentId: job.segmentId,
-            sourceText: job.sourceText,
-            translatedText,
-            startTimeMs: job.startTimeMs,
-            endTimeMs: job.endTimeMs,
-          });
-        }
-      }
-    } finally {
-      this.translating = false;
-    }
   }
 
   private sendError(code: string, message: string): void {
@@ -241,18 +146,15 @@ function parseClientMessage(data: string | Buffer): ClientMessage | undefined {
   if (!looksLikeJson(text)) {
     return undefined;
   }
-
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
     throw new ProtocolMessageError("Malformed client message");
   }
-
   if (!isClientMessage(parsed)) {
     throw new ProtocolMessageError("Malformed client message");
   }
-
   return parsed;
 }
 
@@ -268,7 +170,7 @@ function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
   }
-  return "Realtime provider failed";
+  return "Realtime session failed";
 }
 
 function getErrorCode(error: unknown): string {
