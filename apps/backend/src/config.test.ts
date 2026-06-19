@@ -14,6 +14,10 @@ const ORIGINAL_ENV = {
   VOLCENGINE_ASR_RESOURCE_ID: process.env.VOLCENGINE_ASR_RESOURCE_ID,
   VOLCENGINE_ASR_ENDPOINT: process.env.VOLCENGINE_ASR_ENDPOINT,
   VOLCENGINE_ASR_VAD_MS: process.env.VOLCENGINE_ASR_VAD_MS,
+  VOLCENGINE_AST_APP_KEY: process.env.VOLCENGINE_AST_APP_KEY,
+  VOLCENGINE_AST_ACCESS_KEY: process.env.VOLCENGINE_AST_ACCESS_KEY,
+  VOLCENGINE_AST_RESOURCE_ID: process.env.VOLCENGINE_AST_RESOURCE_ID,
+  VOLCENGINE_AST_ENDPOINT: process.env.VOLCENGINE_AST_ENDPOINT,
 };
 
 describe("createConfig", () => {
@@ -136,6 +140,18 @@ describe("createConfig", () => {
     process.env.VOLCENGINE_ASR_VAD_MS = "800";
     expect(createConfig().providers.asr.volcengine?.vadSegmentDurationMs).toBe(800);
   });
+
+  it("reads VOLCENGINE_AST_* into providers.interpret", () => {
+    process.env.VOLCENGINE_AST_APP_KEY = "ast-app";
+    process.env.VOLCENGINE_AST_ACCESS_KEY = "ast-access";
+    const config = createConfig();
+    expect(config.providers.interpret).toEqual({
+      appKey: "ast-app",
+      accessKey: "ast-access",
+      resourceId: "volc.service_type.10053",
+      endpoint: "wss://openspeech.bytedance.com/api/v4/ast/v2/translate",
+    });
+  });
 });
 
 function restoreEnv(name: string, value: string | undefined): void {
@@ -163,4 +179,8 @@ afterEach(() => {
   restoreEnv("VOLCENGINE_ASR_RESOURCE_ID", ORIGINAL_ENV.VOLCENGINE_ASR_RESOURCE_ID);
   restoreEnv("VOLCENGINE_ASR_ENDPOINT", ORIGINAL_ENV.VOLCENGINE_ASR_ENDPOINT);
   restoreEnv("VOLCENGINE_ASR_VAD_MS", ORIGINAL_ENV.VOLCENGINE_ASR_VAD_MS);
+  restoreEnv("VOLCENGINE_AST_APP_KEY", ORIGINAL_ENV.VOLCENGINE_AST_APP_KEY);
+  restoreEnv("VOLCENGINE_AST_ACCESS_KEY", ORIGINAL_ENV.VOLCENGINE_AST_ACCESS_KEY);
+  restoreEnv("VOLCENGINE_AST_RESOURCE_ID", ORIGINAL_ENV.VOLCENGINE_AST_RESOURCE_ID);
+  restoreEnv("VOLCENGINE_AST_ENDPOINT", ORIGINAL_ENV.VOLCENGINE_AST_ENDPOINT);
 });
