@@ -25,6 +25,7 @@ describe("RealtimeClient", () => {
       tabTitle: "Example",
       tabUrl: "https://example.com/watch",
       targetLanguage: "zh-CN",
+      mode: "pipeline",
       audioFormat: {
         mimeType: "audio/webm",
         sampleRateHz: 48000,
@@ -37,6 +38,19 @@ describe("RealtimeClient", () => {
         languageEvents: true,
         errorEvents: true
       }
+    });
+  });
+
+  it("carries a non-default mode in the start message", async () => {
+    const client = createClient({ mode: "interpret" });
+    const connected = client.connect();
+
+    FakeWebSocket.instances[0].open();
+    await connected;
+
+    expect(JSON.parse(FakeWebSocket.instances[0].sentText[0])).toMatchObject({
+      type: "start",
+      mode: "interpret"
     });
   });
 
@@ -158,6 +172,7 @@ function createClient(
     tabTitle: "Example",
     tabUrl: "https://example.com/watch",
     targetLanguage: "zh-CN",
+    mode: "pipeline",
     audioFormat: {
       mimeType: "audio/webm",
       sampleRateHz: 48000,

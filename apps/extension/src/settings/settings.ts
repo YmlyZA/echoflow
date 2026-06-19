@@ -32,6 +32,7 @@ export const SUBTITLE_MODE_OPTIONS = [
   { value: "pipeline" as const, label: "一致 (免费)" },
   { value: "interpret" as const, label: "实时 (付费)" }
 ] as const;
+
 const MIN_SUBTITLE_FONT_SIZE = 12;
 const MAX_SUBTITLE_FONT_SIZE = 48;
 
