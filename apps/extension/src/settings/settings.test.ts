@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildRealtimeWebSocketUrl,
   getDefaultTargetLanguage,
+  loadSettings,
   resolveSettings,
   saveSettings,
   validateSettings
@@ -13,7 +14,8 @@ describe("settings validation", () => {
       serverUrl: "",
       apiKey: "secret",
       targetLanguage: "en",
-      subtitleFontSize: 24
+      subtitleFontSize: 24,
+      mode: "pipeline"
     });
 
     expect(result.valid).toBe(false);
@@ -25,7 +27,8 @@ describe("settings validation", () => {
       serverUrl: "https://api.example.com",
       apiKey: "",
       targetLanguage: "en",
-      subtitleFontSize: 24
+      subtitleFontSize: 24,
+      mode: "pipeline"
     });
 
     expect(result.valid).toBe(false);
@@ -55,34 +58,55 @@ describe("target language defaults", () => {
   });
 });
 
+function createMemoryStorage() {
+  const saved = new Map<string, unknown>();
+  return {
+    async get<T>(key: string): Promise<T | undefined> {
+      return saved.get(key) as T | undefined;
+    },
+    async set<T>(key: string, value: T): Promise<void> {
+      saved.set(key, value);
+    }
+  };
+}
+
 describe("settings storage", () => {
   it("trims settings before saving through the storage adapter", async () => {
-    const saved = new Map<string, unknown>();
+    const storage = createMemoryStorage();
 
     const result = await saveSettings(
       {
         serverUrl: " https://api.example.com ",
         apiKey: " secret ",
         targetLanguage: " zh-CN ",
-        subtitleFontSize: 24
+        subtitleFontSize: 24,
+        mode: "pipeline"
       },
-      {
-        async get<T>(key: string): Promise<T | undefined> {
-          return saved.get(key) as T | undefined;
-        },
-        async set<T>(key: string, value: T): Promise<void> {
-          saved.set(key, value);
-        }
-      }
+      storage
     );
 
     expect(result.valid).toBe(true);
-    expect(saved.get("echoflow.settings")).toEqual({
+    expect(await storage.get("echoflow.settings")).toEqual({
       serverUrl: "https://api.example.com",
       apiKey: "secret",
       targetLanguage: "zh-CN",
-      subtitleFontSize: 24
+      subtitleFontSize: 24,
+      mode: "pipeline"
     });
+  });
+
+  it("defaults mode to pipeline and round-trips a stored mode", async () => {
+    const storage = createMemoryStorage();
+    await saveSettings(
+      { serverUrl: "http://127.0.0.1:8787", apiKey: "k", targetLanguage: "zh-CN", subtitleFontSize: 24, mode: "interpret" },
+      storage,
+    );
+    const loaded = await loadSettings(storage, "en-US");
+    expect(loaded.mode).toBe("interpret");
+  });
+
+  it("resolves mode to pipeline when unset", () => {
+    expect(resolveSettings(undefined, "en-US").mode).toBe("pipeline");
   });
 });
 

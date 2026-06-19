@@ -8,6 +8,7 @@ import { createHistoryStore } from "../../src/history/historyStore";
 import {
   type ExtensionSettings,
   type SettingsValidationErrors,
+  SUBTITLE_MODE_OPTIONS,
   TARGET_LANGUAGE_OPTIONS,
   loadSettings,
   saveSettings,
@@ -21,7 +22,8 @@ function OptionsApp() {
     serverUrl: "",
     apiKey: "",
     targetLanguage: "en",
-    subtitleFontSize: 24
+    subtitleFontSize: 24,
+    mode: "pipeline"
   });
   const [errors, setErrors] = useState<SettingsValidationErrors>({});
   const [savedState, setSavedState] = useState("");
@@ -141,6 +143,23 @@ function OptionsApp() {
             ))}
           </select>
           <FieldError message={errors.targetLanguage} />
+        </label>
+
+        <label style={styles.label}>
+          Subtitle mode
+          <select
+            value={settings.mode}
+            onChange={(event) =>
+              updateSetting("mode", event.currentTarget.value as ExtensionSettings["mode"])
+            }
+            style={styles.input}
+          >
+            {SUBTITLE_MODE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </label>
 
         <label style={styles.label}>

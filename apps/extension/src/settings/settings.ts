@@ -1,8 +1,11 @@
+import type { SubtitleMode } from "@echoflow/protocol";
+
 export interface ExtensionSettings {
   serverUrl: string;
   apiKey: string;
   targetLanguage: string;
   subtitleFontSize: number;
+  mode: SubtitleMode;
 }
 
 export type SettingsValidationErrors = Partial<
@@ -23,6 +26,12 @@ export const SETTINGS_STORAGE_KEY = "echoflow.settings";
 export const DEFAULT_SUBTITLE_FONT_SIZE = 24;
 
 const DEFAULT_TARGET_LANGUAGE = "en";
+const DEFAULT_SUBTITLE_MODE: SubtitleMode = "pipeline";
+
+export const SUBTITLE_MODE_OPTIONS = [
+  { value: "pipeline" as const, label: "一致 (免费)" },
+  { value: "interpret" as const, label: "实时 (付费)" }
+] as const;
 const MIN_SUBTITLE_FONT_SIZE = 12;
 const MAX_SUBTITLE_FONT_SIZE = 48;
 
@@ -73,7 +82,8 @@ export function resolveSettings(
     targetLanguage:
       storedSettings?.targetLanguage ?? getDefaultTargetLanguage(browserLanguage),
     subtitleFontSize:
-      storedSettings?.subtitleFontSize ?? DEFAULT_SUBTITLE_FONT_SIZE
+      storedSettings?.subtitleFontSize ?? DEFAULT_SUBTITLE_FONT_SIZE,
+    mode: storedSettings?.mode ?? DEFAULT_SUBTITLE_MODE
   };
 }
 
@@ -143,7 +153,8 @@ export async function saveSettings(
     serverUrl: settings.serverUrl.trim(),
     apiKey: settings.apiKey.trim(),
     targetLanguage: settings.targetLanguage.trim(),
-    subtitleFontSize: settings.subtitleFontSize
+    subtitleFontSize: settings.subtitleFontSize,
+    mode: settings.mode
   });
 
   return validation;

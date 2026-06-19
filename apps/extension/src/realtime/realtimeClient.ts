@@ -4,7 +4,8 @@ import {
   type AudioFrameMetadata,
   type ClientCapabilities,
   type ClientMessage,
-  type ServerEvent
+  type ServerEvent,
+  type SubtitleMode
 } from "@echoflow/protocol";
 
 export interface BrowserWebSocket {
@@ -29,6 +30,7 @@ export interface RealtimeClientOptions {
   tabTitle: string;
   tabUrl: string;
   targetLanguage: string;
+  mode: SubtitleMode;
   audioFormat: AudioFormatMetadata;
   clientCapabilities?: ClientCapabilities;
   maxConnectionAttempts?: number;
@@ -231,6 +233,7 @@ export class RealtimeClient {
   private createStartMessage(): ClientMessage {
     return {
       type: "start",
+      mode: this.options.mode,
       sessionId: this.options.sessionId,
       tabTitle: this.options.tabTitle,
       tabUrl: this.options.tabUrl,

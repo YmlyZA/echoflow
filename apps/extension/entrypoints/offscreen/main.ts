@@ -54,6 +54,7 @@ async function startSession(message: StartSessionMessage): Promise<void> {
       tabTitle: tab.title,
       tabUrl: tab.url,
       targetLanguage: message.settings.targetLanguage,
+      mode: message.settings.mode,
       audioFormat: CANONICAL_PCM_AUDIO_FORMAT,
       onEvent: (event) => {
         void chrome.runtime.sendMessage({
