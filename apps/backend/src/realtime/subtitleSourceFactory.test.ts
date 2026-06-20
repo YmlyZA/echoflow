@@ -16,11 +16,6 @@ describe("createSubtitleSourceFactory", () => {
     const factory = createSubtitleSourceFactory(DEFAULT_PROVIDER_CONFIG);
     expect(factory("pipeline", "zh-CN")).toBeInstanceOf(PipelineSubtitleSource);
   });
-
-  it("throws ModeUnavailableError for interpret mode (not yet available)", () => {
-    const factory = createSubtitleSourceFactory(DEFAULT_PROVIDER_CONFIG);
-    expect(() => factory("interpret", "zh-CN")).toThrow(ModeUnavailableError);
-  });
 });
 
 describe("createSubtitleSourceFactory — interpret", () => {
