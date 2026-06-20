@@ -5,6 +5,7 @@ import {
 } from "@echoflow/protocol";
 import type { WebSocket } from "ws";
 import {
+  ModeLanguageUnsupportedError,
   ModeUnavailableError,
   type SubtitleSourceFactory,
   type SubtitleSourceStream,
@@ -96,6 +97,10 @@ export class RealtimeSession {
     } catch (error: unknown) {
       if (error instanceof ModeUnavailableError) {
         this.sendError("mode_unavailable", error.message);
+        return;
+      }
+      if (error instanceof ModeLanguageUnsupportedError) {
+        this.sendError("mode_language_unsupported", error.message);
         return;
       }
       this.sendError("provider_error", getErrorMessage(error));
