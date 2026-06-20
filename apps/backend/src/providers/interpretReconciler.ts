@@ -16,11 +16,9 @@ export class InterpretReconciler {
   private ordinal = 0;
   private sourceText = "";
   private translationText = "";
-  private started = false;
 
   reconcile(event: AstServerEvent): InterpretSegment[] {
     if (event.kind === "source") {
-      this.started = true;
       this.sourceText = event.text;
       if (event.final) {
         return []; // source end is not a render boundary; translation end is
@@ -50,7 +48,6 @@ export class InterpretReconciler {
       this.ordinal += 1;
       this.sourceText = "";
       this.translationText = "";
-      this.started = false;
       return [final];
     }
     return [];
