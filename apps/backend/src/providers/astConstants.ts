@@ -61,6 +61,8 @@ export const AST_AUDIO_FIELD_CHANNEL = 9; // int32: 1
 // TranslateResponse (ast_service.proto) — inbound payload fields.
 export const AST_RESP_FIELD_RESPONSE_META = 1; // len-delim: ResponseMeta (for error details)
 export const AST_RESP_FIELD_TEXT = 4; // string: subtitle text (source OR translation)
+export const AST_RESP_FIELD_START_TIME = 5; // int32 (varint): utterance start ms
+export const AST_RESP_FIELD_END_TIME = 6; // int32 (varint): utterance end ms
 
 // ResponseMeta sub-message fields (rpcmeta.proto — common.ResponseMeta).
 export const AST_META_FIELD_STATUS_CODE = 3; // int32: error code on SessionFailed

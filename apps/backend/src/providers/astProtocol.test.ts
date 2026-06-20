@@ -72,6 +72,8 @@ describe("astProtocol", () => {
       kind: "source",
       text: "hi",
       final: false,
+      startTime: 0,
+      endTime: 0,
     });
   });
 
@@ -83,6 +85,42 @@ describe("astProtocol", () => {
       kind: "translation",
       text: "你好",
       final: true,
+      startTime: 0,
+      endTime: 0,
+    });
+  });
+
+  it("decodes SourceSubtitleResponse(651) 'hi' with start_time=1000, end_time=2500", () => {
+    // Hand-computed: event=651, sidLen=0, payload=field4("hi")+field5(1000)+field6(2500)
+    // field4("hi"): 22 02 68 69
+    // field5(varint 1000=0xE807): 28 E8 07
+    // field6(varint 2500=0xC413): 30 C4 13
+    // payload = 0A bytes: 22 02 68 69 28 E8 07 30 C4 13
+    const hex = "119420000000028B000000000000000A2202686928E80730C413";
+    const sample = Buffer.from(hex, "hex");
+    expect(parseAstMessage(sample)).toEqual({
+      kind: "source",
+      text: "hi",
+      final: false,
+      startTime: 1000,
+      endTime: 2500,
+    });
+  });
+
+  it("decodes TranslationSubtitleEnd(655) '你好' with start_time=1000, end_time=2500", () => {
+    // Hand-computed: event=655, sidLen=0, payload=field4("你好")+field5(1000)+field6(2500)
+    // field4("你好"): 22 06 E4 BD A0 E5 A5 BD
+    // field5(varint 1000=0xE807): 28 E8 07
+    // field6(varint 2500=0xC413): 30 C4 13
+    // payload = 0E bytes: 22 06 E4 BD A0 E5 A5 BD 28 E8 07 30 C4 13
+    const hex = "119420000000028F000000000000000E2206E4BDA0E5A5BD28E80730C413";
+    const sample = Buffer.from(hex, "hex");
+    expect(parseAstMessage(sample)).toEqual({
+      kind: "translation",
+      text: "你好",
+      final: true,
+      startTime: 1000,
+      endTime: 2500,
     });
   });
 
@@ -110,6 +148,8 @@ describe("astProtocol", () => {
       kind: "source",
       text: "hi",
       final: false,
+      startTime: 0,
+      endTime: 0,
     });
   });
 });

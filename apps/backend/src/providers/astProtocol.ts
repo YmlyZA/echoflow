@@ -11,8 +11,8 @@ export type AstStartSessionOptions = {
 };
 
 export type AstServerEvent =
-  | { kind: "source"; text: string; final: boolean }
-  | { kind: "translation"; text: string; final: boolean }
+  | { kind: "source"; text: string; final: boolean; startTime: number; endTime: number }
+  | { kind: "translation"; text: string; final: boolean; startTime: number; endTime: number }
   | { kind: "usage" }
   | { kind: "error"; code: number; message: string }
   | { kind: "other" };
@@ -101,6 +101,11 @@ function readMessage(buf: Buffer): Map<number, ProtoField[]> {
 function getString(fields: Map<number, ProtoField[]>, field: number): string {
   const f = fields.get(field)?.[0];
   return f && Buffer.isBuffer(f.value) ? f.value.toString("utf8") : "";
+}
+
+function getVarintNumber(fields: Map<number, ProtoField[]>, field: number): number {
+  const f = fields.get(field)?.[0];
+  return f && typeof f.value === "bigint" ? Number(f.value) : 0;
 }
 
 // ---- frame header & envelope ----
@@ -208,16 +213,16 @@ export function parseAstMessage(data: Buffer): AstServerEvent {
 
   switch (event) {
     case C.AST_EVENT_SOURCE_RESPONSE:
-      return { kind: "source", text: parseSubtitleText(payload), final: false };
+      return { kind: "source", final: false, ...parseSubtitleFrame(payload) };
 
     case C.AST_EVENT_SOURCE_END:
-      return { kind: "source", text: parseSubtitleText(payload), final: true };
+      return { kind: "source", final: true, ...parseSubtitleFrame(payload) };
 
     case C.AST_EVENT_TRANSLATION_RESPONSE:
-      return { kind: "translation", text: parseSubtitleText(payload), final: false };
+      return { kind: "translation", final: false, ...parseSubtitleFrame(payload) };
 
     case C.AST_EVENT_TRANSLATION_END:
-      return { kind: "translation", text: parseSubtitleText(payload), final: true };
+      return { kind: "translation", final: true, ...parseSubtitleFrame(payload) };
 
     case C.AST_EVENT_USAGE:
       return { kind: "usage" };
@@ -230,10 +235,14 @@ export function parseAstMessage(data: Buffer): AstServerEvent {
   }
 }
 
-/** Read TranslateResponse.text (field 4) from a subtitle payload. */
-function parseSubtitleText(payload: Buffer): string {
+/** Read TranslateResponse text (field 4), start_time (field 5), end_time (field 6) from a subtitle payload. */
+function parseSubtitleFrame(payload: Buffer): { text: string; startTime: number; endTime: number } {
   const fields = readMessage(payload);
-  return getString(fields, C.AST_RESP_FIELD_TEXT);
+  return {
+    text: getString(fields, C.AST_RESP_FIELD_TEXT),
+    startTime: getVarintNumber(fields, C.AST_RESP_FIELD_START_TIME),
+    endTime: getVarintNumber(fields, C.AST_RESP_FIELD_END_TIME),
+  };
 }
 
 /**

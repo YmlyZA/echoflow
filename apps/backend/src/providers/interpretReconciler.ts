@@ -16,9 +16,16 @@ export class InterpretReconciler {
   private ordinal = 0;
   private sourceText = "";
   private translationText = "";
+  private sourceStartTime = 0;
+  private sourceEndTime = 0;
 
   reconcile(event: AstServerEvent): InterpretSegment[] {
     if (event.kind === "source") {
+      // Capture startTime from the first source event of this segment (when sourceText was empty).
+      if (this.sourceText === "") {
+        this.sourceStartTime = event.startTime;
+      }
+      this.sourceEndTime = event.endTime;
       this.sourceText = event.text;
       if (event.final) {
         return []; // source end is not a render boundary; translation end is
@@ -28,7 +35,7 @@ export class InterpretReconciler {
           kind: "partial",
           segmentId: `ast-${this.ordinal}`,
           text: this.sourceText,
-          startTimeMs: 0,
+          startTimeMs: this.sourceStartTime,
         },
       ];
     }
@@ -42,12 +49,14 @@ export class InterpretReconciler {
         segmentId: `ast-${this.ordinal}`,
         text: this.sourceText,
         translatedText: this.translationText,
-        startTimeMs: 0,
-        endTimeMs: 0,
+        startTimeMs: this.sourceStartTime,
+        endTimeMs: this.sourceEndTime,
       };
       this.ordinal += 1;
       this.sourceText = "";
       this.translationText = "";
+      this.sourceStartTime = 0;
+      this.sourceEndTime = 0;
       return [final];
     }
     return [];
