@@ -96,4 +96,20 @@ describe("astProtocol", () => {
       message: "busy",
     });
   });
+
+  it("decodes a frame with a non-zero sessionId, proving the payload offset is dynamic", () => {
+    // Hand-computed vector: event=651, sidLen=36 (UUID), payload=field4("hi").
+    // A parser that hardcoded the payload offset at 12 (instead of 12 + sidLen)
+    // would read the session id as the payload and fail this case.
+    const hex =
+      "11942000 0000028B 00000024 " + // header, event=651, sidLen=36
+      "3131313131313131 2D 31313131 2D 31313131 2D 31313131 2D 313131313131313131313131 " + // "11111111-1111-1111-1111-111111111111"
+      "00000004 22026869"; // payloadLen=4, field4("hi")
+    const sample = Buffer.from(hex.replace(/\s/g, ""), "hex");
+    expect(parseAstMessage(sample)).toEqual({
+      kind: "source",
+      text: "hi",
+      final: false,
+    });
+  });
 });
