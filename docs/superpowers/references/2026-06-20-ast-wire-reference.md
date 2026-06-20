@@ -314,6 +314,10 @@ This yields the intended UX: **source live (651 → partial), translation a beat
 5. `SessionFailed` error code/message live in `response_meta` → `StatusCode`/`Message`.
 6. Whether any inbound frame (e.g. `SessionStarted`) reports the detected source language.
 7. Observed end-to-end latency (expected ~2–3 s for s2t).
+8. That `start_time` (field 5) / `end_time` (field 6) on the subtitle frames carry meaningful
+   utterance-relative ms. **The codec now parses these and the reconciler emits them on the `final`**
+   (so interpret-mode history timestamps work); the *values* still need a real session to confirm
+   they aren't always 0 / aren't in some other unit.
 
 If any differs, amend the relevant section above and adjust `astConstants.ts` / the codec — **this
 reference remains authoritative.**
