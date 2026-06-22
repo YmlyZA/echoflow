@@ -52,9 +52,16 @@ const instrumentedConnect: AstTransportFactory = (options, callbacks) =>
   connectAstTransport(options, {
     ...callbacks,
     onMessage: (data) => {
-      const ev = parseAstMessage(data);
-      console.log(`[wire ${stamp()}] ${JSON.stringify(ev)}`);
-      callbacks.onMessage(data);
+      // Dump the raw envelope first so a parser mismatch is diagnosable.
+      const head = data.subarray(0, Math.min(data.length, 64)).toString("hex");
+      console.log(`[bytes ${stamp()}] len=${data.length} head=${head}`);
+      try {
+        const ev = parseAstMessage(data);
+        console.log(`[wire ${stamp()}] ${JSON.stringify(ev)}`);
+        callbacks.onMessage(data);
+      } catch (err) {
+        console.log(`[parse-error ${stamp()}] ${(err as Error).message}`);
+      }
     },
   });
 

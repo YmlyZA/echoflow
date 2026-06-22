@@ -4,8 +4,13 @@ import * as C from "./astConstants.js";
 
 export type AstStartSessionOptions = {
   sessionId: string;
-  /** When true, source_language is sent as "" (auto-detect). No separate proto field exists. */
-  sourceLanguageDetect: boolean;
+  resourceId: string;
+  /**
+   * Explicit AST source language code (e.g. "en"). model:default has no
+   * language pair for an empty source ("2zh" → "InvalidData ... not found"),
+   * so auto-detect is NOT supported — a concrete source language is required.
+   */
+  sourceLanguage: string;
   targetLanguage: string;
   audio: { format: string; rate: number; bits: number; channel: number };
 };
@@ -45,6 +50,10 @@ function writeVarintField(field: number, value: number): Buffer {
 }
 
 function writeMessageField(field: number, body: Buffer): Buffer {
+  return Buffer.concat([writeTag(field, 2), writeVarint(body.length), body]);
+}
+
+function writeBytesField(field: number, body: Buffer): Buffer {
   return Buffer.concat([writeTag(field, 2), writeVarint(body.length), body]);
 }
 
@@ -108,47 +117,23 @@ function getVarintNumber(fields: Map<number, ProtoField[]>, field: number): numb
   return f && typeof f.value === "bigint" ? Number(f.value) : 0;
 }
 
-// ---- frame header & envelope ----
-
-function buildHeader(messageType: number, serialization: number): Buffer {
-  return Buffer.from([
-    (C.AST_PROTOCOL_VERSION << 4) | C.AST_HEADER_SIZE,
-    (messageType << 4) | C.AST_FLAGS_WITH_EVENT,
-    (serialization << 4) | C.AST_COMPRESSION_NONE,
-    0x00,
-  ]);
-}
-
-/**
- * Build an AST event-protocol frame.
- * Layout: header[4] | event(int32BE)[4] | sidLen(uint32BE)[4] | sessionId(UTF-8) | payloadLen(uint32BE)[4] | payload
- */
-function buildEventFrame(
-  messageType: number,
-  serialization: number,
-  event: number,
-  sessionId: string,
-  payload: Buffer,
-): Buffer {
-  const header = buildHeader(messageType, serialization);
-
-  const eventBuf = Buffer.alloc(4);
-  eventBuf.writeInt32BE(event, 0);
-
-  const sidBytes = Buffer.from(sessionId, "utf8");
-  const sidLenBuf = Buffer.alloc(4);
-  sidLenBuf.writeUInt32BE(sidBytes.length, 0);
-
-  const payloadLenBuf = Buffer.alloc(4);
-  payloadLenBuf.writeUInt32BE(payload.length, 0);
-
-  return Buffer.concat([header, eventBuf, sidLenBuf, sidBytes, payloadLenBuf, payload]);
-}
-
 // ---- public encoders ----
+//
+// Each returns ONE bare serialized TranslateRequest protobuf (no frame header).
+// The ws layer delivers it as a single binary message.
+
+/** RequestMeta { SessionID(6), ResourceID(4)? }. */
+function buildRequestMeta(sessionId: string, resourceId?: string): Buffer {
+  const parts: Buffer[] = [];
+  if (resourceId !== undefined) {
+    parts.push(writeStringField(C.AST_REQMETA_FIELD_RESOURCE_ID, resourceId));
+  }
+  parts.push(writeStringField(C.AST_REQMETA_FIELD_SESSION_ID, sessionId));
+  return Buffer.concat(parts);
+}
 
 export function encodeStartSession(opts: AstStartSessionOptions): Buffer {
-  // Audio sub-message: Audio { format(4), rate(7), bits(8), channel(9) }
+  // Audio { format(4), rate(7), bits(8), channel(9) }
   const audioBody = Buffer.concat([
     writeStringField(C.AST_AUDIO_FIELD_FORMAT, opts.audio.format),
     writeVarintField(C.AST_AUDIO_FIELD_RATE, opts.audio.rate),
@@ -156,88 +141,86 @@ export function encodeStartSession(opts: AstStartSessionOptions): Buffer {
     writeVarintField(C.AST_AUDIO_FIELD_CHANNEL, opts.audio.channel),
   ]);
 
-  // ReqParams sub-message: { mode(1), source_language(2), target_language(3) }
+  // ReqParams { mode(1), source_language(2), target_language(3) }
   // source_language "" = auto-detect (no separate detect flag in AST proto)
   const reqBody = Buffer.concat([
     writeStringField(C.AST_REQPARAMS_FIELD_MODE, "s2t"),
-    writeStringField(C.AST_REQPARAMS_FIELD_SOURCE_LANGUAGE, ""),
+    writeStringField(C.AST_REQPARAMS_FIELD_SOURCE_LANGUAGE, opts.sourceLanguage),
     writeStringField(C.AST_REQPARAMS_FIELD_TARGET_LANGUAGE, opts.targetLanguage),
   ]);
 
-  // TranslateRequest: { event(2), source_audio(4), request(6) }
-  const payload = Buffer.concat([
+  // TranslateRequest { request_meta(1), event(2), source_audio(4), request(6) }
+  return Buffer.concat([
+    writeMessageField(
+      C.AST_REQ_FIELD_REQUEST_META,
+      buildRequestMeta(opts.sessionId, opts.resourceId),
+    ),
     writeVarintField(C.AST_REQ_FIELD_EVENT, C.AST_EVENT_START_SESSION),
     writeMessageField(C.AST_REQ_FIELD_SOURCE_AUDIO, audioBody),
     writeMessageField(C.AST_REQ_FIELD_REQUEST, reqBody),
   ]);
-
-  return buildEventFrame(
-    C.AST_MSG_TYPE_FULL_CLIENT,
-    C.AST_SERIALIZATION_PROTOBUF,
-    C.AST_EVENT_START_SESSION,
-    opts.sessionId,
-    payload,
-  );
 }
 
 export function encodeAudioRequest(audio: Buffer, sessionId: string): Buffer {
-  return buildEventFrame(
-    C.AST_MSG_TYPE_AUDIO_ONLY,
-    C.AST_SERIALIZATION_NONE,
-    C.AST_EVENT_TASK_REQUEST,
-    sessionId,
-    audio,
-  );
+  // Audio { binary_data(14) }
+  const audioBody = writeBytesField(C.AST_AUDIO_FIELD_BINARY_DATA, audio);
+
+  // TranslateRequest { request_meta(1), event(2)=TaskRequest, source_audio(4) }
+  return Buffer.concat([
+    writeMessageField(C.AST_REQ_FIELD_REQUEST_META, buildRequestMeta(sessionId)),
+    writeVarintField(C.AST_REQ_FIELD_EVENT, C.AST_EVENT_TASK_REQUEST),
+    writeMessageField(C.AST_REQ_FIELD_SOURCE_AUDIO, audioBody),
+  ]);
 }
 
 export function encodeFinishSession(sessionId: string): Buffer {
-  return buildEventFrame(
-    C.AST_MSG_TYPE_FULL_CLIENT,
-    C.AST_SERIALIZATION_PROTOBUF,
-    C.AST_EVENT_FINISH_SESSION,
-    sessionId,
-    Buffer.alloc(0),
-  );
+  // TranslateRequest { request_meta(1), event(2)=FinishSession }
+  return Buffer.concat([
+    writeMessageField(C.AST_REQ_FIELD_REQUEST_META, buildRequestMeta(sessionId)),
+    writeVarintField(C.AST_REQ_FIELD_EVENT, C.AST_EVENT_FINISH_SESSION),
+  ]);
 }
 
 // ---- public parser ----
 
 export function parseAstMessage(data: Buffer): AstServerEvent {
-  // Frame layout: header[4] | event(int32BE)[4] | sidLen(uint32BE)[4] | sessionId | payloadLen(uint32BE)[4] | payload
-  const event = data.readInt32BE(4);
-  const sidLen = data.readUInt32BE(8);
-  const payloadLenOffset = 12 + sidLen;
-  const payloadLen = data.readUInt32BE(payloadLenOffset);
-  const payloadStart = payloadLenOffset + 4;
-  const payload = data.subarray(payloadStart, payloadStart + payloadLen);
+  // A bare TranslateResponse protobuf: { response_meta(1), event(2), text(4),
+  // start_time(5), end_time(6) }.
+  const fields = readMessage(data);
+  const event = getVarintNumber(fields, C.AST_RESP_FIELD_EVENT);
+
+  // Errors arrive via response_meta.StatusCode — sometimes with event=0 (None),
+  // e.g. a gateway "cannot parse payload" rejection — so check status first.
+  const error = parseError(fields);
+  if (error !== undefined) {
+    return error;
+  }
 
   switch (event) {
     case C.AST_EVENT_SOURCE_RESPONSE:
-      return { kind: "source", final: false, ...parseSubtitleFrame(payload) };
+      return { kind: "source", final: false, ...parseSubtitle(fields) };
 
     case C.AST_EVENT_SOURCE_END:
-      return { kind: "source", final: true, ...parseSubtitleFrame(payload) };
+      return { kind: "source", final: true, ...parseSubtitle(fields) };
 
     case C.AST_EVENT_TRANSLATION_RESPONSE:
-      return { kind: "translation", final: false, ...parseSubtitleFrame(payload) };
+      return { kind: "translation", final: false, ...parseSubtitle(fields) };
 
     case C.AST_EVENT_TRANSLATION_END:
-      return { kind: "translation", final: true, ...parseSubtitleFrame(payload) };
+      return { kind: "translation", final: true, ...parseSubtitle(fields) };
 
     case C.AST_EVENT_USAGE:
       return { kind: "usage" };
-
-    case C.AST_EVENT_SESSION_FAILED:
-      return parseSessionFailed(payload);
 
     default:
       return { kind: "other" };
   }
 }
 
-/** Read TranslateResponse text (field 4), start_time (field 5), end_time (field 6) from a subtitle payload. */
-function parseSubtitleFrame(payload: Buffer): { text: string; startTime: number; endTime: number } {
-  const fields = readMessage(payload);
+/** Read TranslateResponse text (4), start_time (5), end_time (6). */
+function parseSubtitle(
+  fields: Map<number, ProtoField[]>,
+): { text: string; startTime: number; endTime: number } {
   return {
     text: getString(fields, C.AST_RESP_FIELD_TEXT),
     startTime: getVarintNumber(fields, C.AST_RESP_FIELD_START_TIME),
@@ -246,19 +229,20 @@ function parseSubtitleFrame(payload: Buffer): { text: string; startTime: number;
 }
 
 /**
- * Parse a SessionFailed(153) payload.
- * Error code/message live in TranslateResponse.response_meta (field 1) →
- * ResponseMeta.StatusCode (field 3) / ResponseMeta.Message (field 4).
+ * Surface an error if response_meta (field 1) carries a failing StatusCode.
+ * 0 (unset) and SUCCESS(21000) are not errors; anything else is.
  */
-function parseSessionFailed(payload: Buffer): AstServerEvent & { kind: "error" } {
-  const fields = readMessage(payload);
+function parseError(
+  fields: Map<number, ProtoField[]>,
+): (AstServerEvent & { kind: "error" }) | undefined {
   const metaRaw = fields.get(C.AST_RESP_FIELD_RESPONSE_META)?.[0]?.value;
-  const metaBuf = Buffer.isBuffer(metaRaw) ? metaRaw : Buffer.alloc(0);
-  const meta = readMessage(metaBuf);
-
-  const codeField = meta.get(C.AST_META_FIELD_STATUS_CODE)?.[0]?.value;
-  const code = typeof codeField === "bigint" ? Number(codeField) : 0;
-  const message = getString(meta, C.AST_META_FIELD_MESSAGE);
-
-  return { kind: "error", code, message };
+  if (!Buffer.isBuffer(metaRaw)) {
+    return undefined;
+  }
+  const meta = readMessage(metaRaw);
+  const code = getVarintNumber(meta, C.AST_META_FIELD_STATUS_CODE);
+  if (C.isAstOkStatus(code)) {
+    return undefined;
+  }
+  return { kind: "error", code, message: getString(meta, C.AST_META_FIELD_MESSAGE) };
 }

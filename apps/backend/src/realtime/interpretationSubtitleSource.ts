@@ -10,7 +10,10 @@ import {
   connectAstTransport,
   type AstTransportFactory,
 } from "../providers/astTransport.js";
-import { toAstLanguageCode } from "../providers/astLanguages.js";
+import {
+  counterpartAstLanguage,
+  toAstLanguageCode,
+} from "../providers/astLanguages.js";
 import { InterpretReconciler } from "../providers/interpretReconciler.js";
 import type { AudioFrame } from "../providers/types.js";
 import type { SubtitleSource, SubtitleSourceStream } from "./subtitleSource.js";
@@ -33,6 +36,8 @@ export class InterpretationSubtitleSource implements SubtitleSource {
     onError?: (error: Error) => void;
   }): SubtitleSourceStream {
     const targetLanguage = this.targetLanguage;
+    const targetAst = toAstLanguageCode(targetLanguage);
+    const sourceAst = counterpartAstLanguage(targetAst);
     const reconciler = new InterpretReconciler();
     const sessionId = randomUUID();
     let languageEmitted = false;
@@ -60,7 +65,7 @@ export class InterpretationSubtitleSource implements SubtitleSource {
           }
           if (!languageEmitted) {
             languageEmitted = true;
-            opts.onEvent({ type: "language", sourceLanguage: "auto", targetLanguage });
+            opts.onEvent({ type: "language", sourceLanguage: sourceAst, targetLanguage });
           }
           for (const seg of reconciler.reconcile(event)) {
             if (seg.kind === "partial") {
@@ -93,8 +98,9 @@ export class InterpretationSubtitleSource implements SubtitleSource {
     transport.send(
       encodeStartSession({
         sessionId,
-        sourceLanguageDetect: true,
-        targetLanguage: toAstLanguageCode(targetLanguage),
+        resourceId: this.config.resourceId,
+        sourceLanguage: sourceAst,
+        targetLanguage: targetAst,
         audio: { format: "pcm", rate: 16000, bits: 16, channel: 1 },
       }),
     );
