@@ -16,8 +16,7 @@ import type { AudioFrame } from "../providers/types.js";
 import type { SubtitleSource, SubtitleSourceStream } from "./subtitleSource.js";
 
 export type AstSourceConfig = {
-  appKey: string;
-  accessKey: string;
+  apiKey: string;
   resourceId: string;
   endpoint: string;
 };
@@ -43,8 +42,7 @@ export class InterpretationSubtitleSource implements SubtitleSource {
       {
         endpoint: this.config.endpoint,
         headers: {
-          "X-Api-App-Key": this.config.appKey,
-          "X-Api-Access-Key": this.config.accessKey,
+          "X-Api-Key": this.config.apiKey,
           "X-Api-Resource-Id": this.config.resourceId,
           "X-Api-Request-Id": sessionId,
         },

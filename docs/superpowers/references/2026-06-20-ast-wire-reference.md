@@ -25,11 +25,12 @@ schema); confirm during the Task 9 real session and amend here if reality differ
 
 - **Endpoint:** `wss://openspeech.bytedance.com/api/v4/ast/v2/translate`
 - **Resource-Id:** `volc.service_type.10053` (AST is a **separate subscription** from ASR)
-- **Auth headers** (mirror the ASR adapter's block exactly):
-  - `X-Api-App-Key: <VOLCENGINE_AST_APP_KEY>`
-  - `X-Api-Access-Key: <VOLCENGINE_AST_ACCESS_KEY>`
+- **Auth headers** (new-console scheme — a single API Key, *not* the ASR adapter's app-id/access-key pair):
+  - `X-Api-Key: <VOLCENGINE_AST_API_KEY>`
   - `X-Api-Resource-Id: volc.service_type.10053`
-  - `X-Api-Request-Id: <uuid>` (per connection)
+  - `X-Api-Request-Id: <uuid>` (per connection; tracing only)
+  - On handshake the server returns `X-Tt-Logid` — capture/log it to correlate issues with Volcengine.
+  - (Legacy old-console scheme used `X-Api-App-Id` + `X-Api-Access-Key`; we target the new console.)
 - After `FinishSession`, the WS connection is **not** closed by the server and may be reused with a
   fresh `StartSession`. (We open one session per connection and close the socket; reuse is out of scope.)
 

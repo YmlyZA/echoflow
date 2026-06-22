@@ -34,8 +34,7 @@ export type TranslationProviderConfig = {
 };
 
 export type VolcengineAstConfig = {
-  appKey: string;
-  accessKey: string;
+  apiKey: string;
   resourceId: string;
   endpoint: string;
 };
@@ -65,11 +64,7 @@ export const DEFAULT_VOLCENGINE_AST_ENDPOINT =
 export const DEFAULT_VOLCENGINE_AST_RESOURCE_ID = "volc.service_type.10053";
 
 export function isInterpretAvailable(config: ProviderConfig): boolean {
-  return (
-    config.interpret !== undefined &&
-    config.interpret.appKey.trim() !== "" &&
-    config.interpret.accessKey.trim() !== ""
-  );
+  return config.interpret !== undefined && config.interpret.apiKey.trim() !== "";
 }
 
 export function parseAsrProviderName(value: string | undefined): AsrProviderName {

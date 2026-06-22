@@ -97,10 +97,9 @@ function readProviderConfig(): ProviderConfig {
     };
   }
 
-  if (process.env.VOLCENGINE_AST_APP_KEY && process.env.VOLCENGINE_AST_ACCESS_KEY) {
+  if (process.env.VOLCENGINE_AST_API_KEY) {
     config.interpret = {
-      appKey: process.env.VOLCENGINE_AST_APP_KEY,
-      accessKey: process.env.VOLCENGINE_AST_ACCESS_KEY,
+      apiKey: process.env.VOLCENGINE_AST_API_KEY,
       resourceId:
         process.env.VOLCENGINE_AST_RESOURCE_ID ?? DEFAULT_VOLCENGINE_AST_RESOURCE_ID,
       endpoint:

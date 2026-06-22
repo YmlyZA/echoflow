@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ServerEvent } from "@echoflow/protocol";
 import type {
+  AstConnectOptions,
   AstTransport,
   AstTransportCallbacks,
   AstTransportFactory,
@@ -12,10 +13,13 @@ function stubTransport(): {
   emit: (data: Buffer) => void;
   fail: (error: Error) => void;
   sent: Buffer[];
+  options: () => AstConnectOptions | undefined;
 } {
   let cbs: AstTransportCallbacks | undefined;
+  let opts: AstConnectOptions | undefined;
   const sent: Buffer[] = [];
-  const factory: AstTransportFactory = (_options, callbacks) => {
+  const factory: AstTransportFactory = (options, callbacks) => {
+    opts = options;
     cbs = callbacks;
     const transport: AstTransport = { send: (d) => sent.push(d), close: () => {} };
     return transport;
@@ -25,12 +29,12 @@ function stubTransport(): {
     emit: (data) => cbs?.onMessage(data),
     fail: (error) => cbs?.onError(error),
     sent,
+    options: () => opts,
   };
 }
 
 const CONFIG = {
-  appKey: "ak",
-  accessKey: "sk",
+  apiKey: "ak",
   resourceId: "volc.service_type.10053",
   endpoint: "wss://x",
 };
@@ -43,6 +47,18 @@ const TRANSLATION_END_HEX =
   "11942000000002 8F00000000000000082206E4BDA0E5A5BD".replace(/\s/g, "");
 
 describe("InterpretationSubtitleSource", () => {
+  it("connects with new-console auth headers (X-Api-Key + X-Api-Resource-Id)", () => {
+    const t = stubTransport();
+    const source = new InterpretationSubtitleSource(CONFIG, "zh-CN", t.factory);
+    source.open({ onEvent: () => {} });
+    const headers = t.options()?.headers ?? {};
+    expect(headers["X-Api-Key"]).toBe("ak");
+    expect(headers["X-Api-Resource-Id"]).toBe("volc.service_type.10053");
+    // old-console headers must not be sent
+    expect(headers["X-Api-App-Key"]).toBeUndefined();
+    expect(headers["X-Api-Access-Key"]).toBeUndefined();
+  });
+
   it("emits a language event and forwards a partial for a source frame", () => {
     const t = stubTransport();
     const events: ServerEvent[] = [];
