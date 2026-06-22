@@ -5,7 +5,11 @@ import {
   loadSettings,
   resolveSettings,
   saveSettings,
-  validateSettings
+  validateSettings,
+  INTERPRET_TARGET_LANGUAGE_OPTIONS,
+  TARGET_LANGUAGE_OPTIONS,
+  targetOptionsForMode,
+  coerceTargetForMode,
 } from "./settings";
 
 describe("settings validation", () => {
@@ -107,6 +111,24 @@ describe("settings storage", () => {
 
   it("resolves mode to pipeline when unset", () => {
     expect(resolveSettings(undefined, "en-US").mode).toBe("pipeline");
+  });
+});
+
+describe("interpret target constraints", () => {
+  it("pipeline mode offers the full target list", () => {
+    expect(targetOptionsForMode("pipeline")).toEqual(TARGET_LANGUAGE_OPTIONS);
+  });
+  it("interpret mode offers only zh-CN, zh-TW, en", () => {
+    expect(targetOptionsForMode("interpret").map((o) => o.value).sort()).toEqual([
+      "en",
+      "zh-CN",
+      "zh-TW",
+    ]);
+  });
+  it("coerces an unsupported target to zh-CN for interpret, leaves it for pipeline", () => {
+    expect(coerceTargetForMode("interpret", "ja")).toBe("zh-CN");
+    expect(coerceTargetForMode("interpret", "en")).toBe("en");
+    expect(coerceTargetForMode("pipeline", "ja")).toBe("ja");
   });
 });
 

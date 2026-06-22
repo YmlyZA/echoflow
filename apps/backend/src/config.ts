@@ -1,8 +1,9 @@
 import {
-  DEFAULT_PROVIDER_CONFIG,
   DEFAULT_VOLCENGINE_ASR_ENDPOINT,
   DEFAULT_VOLCENGINE_ASR_RESOURCE_ID,
   DEFAULT_VOLCENGINE_ASR_VAD_MS,
+  DEFAULT_VOLCENGINE_AST_ENDPOINT,
+  DEFAULT_VOLCENGINE_AST_RESOURCE_ID,
   DEFAULT_VOLCENGINE_TRANSLATION_ENDPOINT,
   DEFAULT_VOLCENGINE_TRANSLATION_RESOURCE_ID,
   type ProviderConfig,
@@ -63,10 +64,6 @@ function readProviderConfig(): ProviderConfig {
     process.env.ECHOFLOW_TRANSLATION_PROVIDER,
   );
 
-  if (asrProvider === "fake" && translationProvider === "fake") {
-    return DEFAULT_PROVIDER_CONFIG;
-  }
-
   const config: ProviderConfig = {
     asr: { provider: asrProvider },
     translation: { provider: translationProvider },
@@ -97,6 +94,17 @@ function readProviderConfig(): ProviderConfig {
       resourceId:
         process.env.VOLCENGINE_TRANSLATION_RESOURCE_ID ??
         DEFAULT_VOLCENGINE_TRANSLATION_RESOURCE_ID,
+    };
+  }
+
+  if (process.env.VOLCENGINE_AST_APP_KEY && process.env.VOLCENGINE_AST_ACCESS_KEY) {
+    config.interpret = {
+      appKey: process.env.VOLCENGINE_AST_APP_KEY,
+      accessKey: process.env.VOLCENGINE_AST_ACCESS_KEY,
+      resourceId:
+        process.env.VOLCENGINE_AST_RESOURCE_ID ?? DEFAULT_VOLCENGINE_AST_RESOURCE_ID,
+      endpoint:
+        process.env.VOLCENGINE_AST_ENDPOINT ?? DEFAULT_VOLCENGINE_AST_ENDPOINT,
     };
   }
 

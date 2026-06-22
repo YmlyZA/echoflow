@@ -33,9 +33,17 @@ export type TranslationProviderConfig = {
   volcengine?: VolcengineTranslationConfig;
 };
 
+export type VolcengineAstConfig = {
+  appKey: string;
+  accessKey: string;
+  resourceId: string;
+  endpoint: string;
+};
+
 export type ProviderConfig = {
   asr: AsrProviderConfig;
   translation: TranslationProviderConfig;
+  interpret?: VolcengineAstConfig;
 };
 
 export const DEFAULT_PROVIDER_CONFIG: ProviderConfig = {
@@ -51,6 +59,18 @@ export const DEFAULT_VOLCENGINE_ASR_ENDPOINT =
   "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel";
 export const DEFAULT_VOLCENGINE_ASR_RESOURCE_ID = "volc.bigasr.sauc.duration";
 export const DEFAULT_VOLCENGINE_ASR_VAD_MS = 1000;
+
+export const DEFAULT_VOLCENGINE_AST_ENDPOINT =
+  "wss://openspeech.bytedance.com/api/v4/ast/v2/translate";
+export const DEFAULT_VOLCENGINE_AST_RESOURCE_ID = "volc.service_type.10053";
+
+export function isInterpretAvailable(config: ProviderConfig): boolean {
+  return (
+    config.interpret !== undefined &&
+    config.interpret.appKey.trim() !== "" &&
+    config.interpret.accessKey.trim() !== ""
+  );
+}
 
 export function parseAsrProviderName(value: string | undefined): AsrProviderName {
   return parseProviderName(value, "ECHOFLOW_ASR_PROVIDER", ASR_PROVIDER_NAMES);

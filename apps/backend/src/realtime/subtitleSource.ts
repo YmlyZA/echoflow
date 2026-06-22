@@ -27,3 +27,10 @@ export class ModeUnavailableError extends Error {
     this.name = "ModeUnavailableError";
   }
 }
+
+export class ModeLanguageUnsupportedError extends Error {
+  constructor(public readonly targetLanguage: string) {
+    super(`Target language "${targetLanguage}" is not supported in this mode`);
+    this.name = "ModeLanguageUnsupportedError";
+  }
+}

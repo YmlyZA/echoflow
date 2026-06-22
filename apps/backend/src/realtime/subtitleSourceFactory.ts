@@ -2,9 +2,15 @@ import {
   createSpeechProvider,
   createTranslationProvider,
 } from "../providers/providerFactory.js";
-import type { ProviderConfig } from "../providers/providerConfig.js";
-import { PipelineSubtitleSource } from "./pipelineSubtitleSource.js";
 import {
+  isInterpretAvailable,
+  type ProviderConfig,
+} from "../providers/providerConfig.js";
+import { isSupportedInterpretTarget } from "../providers/astLanguages.js";
+import { PipelineSubtitleSource } from "./pipelineSubtitleSource.js";
+import { InterpretationSubtitleSource } from "./interpretationSubtitleSource.js";
+import {
+  ModeLanguageUnsupportedError,
   ModeUnavailableError,
   type SubtitleSourceFactory,
 } from "./subtitleSource.js";
@@ -20,7 +26,13 @@ export function createSubtitleSourceFactory(
         targetLanguage,
       );
     }
-    // "interpret" is the paid tier — implemented in Cycle 2.
-    throw new ModeUnavailableError(mode);
+    // interpret
+    if (!isInterpretAvailable(config) || config.interpret === undefined) {
+      throw new ModeUnavailableError(mode);
+    }
+    if (!isSupportedInterpretTarget(targetLanguage)) {
+      throw new ModeLanguageUnsupportedError(targetLanguage);
+    }
+    return new InterpretationSubtitleSource(config.interpret, targetLanguage);
   };
 }

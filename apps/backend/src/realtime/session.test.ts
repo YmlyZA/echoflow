@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ServerEvent } from "@echoflow/protocol";
-import { ModeUnavailableError, type SubtitleSource, type SubtitleSourceFactory } from "./subtitleSource.js";
+import { ModeLanguageUnsupportedError, ModeUnavailableError, type SubtitleSource, type SubtitleSourceFactory } from "./subtitleSource.js";
 import { RealtimeSession } from "./session.js";
 
 type Handler = (...args: unknown[]) => void;
@@ -123,6 +123,27 @@ describe("RealtimeSession", () => {
       expect.objectContaining({ type: "error", code: "mode_unavailable" }),
     );
     // Socket must NOT be closed
+    expect(socket.readyState).toBe(1);
+  });
+
+  it("maps ModeLanguageUnsupportedError to a non-fatal mode_language_unsupported error", () => {
+    const socket = new FakeSocket();
+    const factory: SubtitleSourceFactory = (_mode, targetLanguage) => {
+      throw new ModeLanguageUnsupportedError(targetLanguage);
+    };
+
+    const session = new RealtimeSession({
+      socket: socket as never,
+      createSubtitleSource: factory,
+      defaultTargetLanguage: "zh-CN",
+    });
+    session.start();
+    socket.emit("message", startMessage("interpret"), false);
+
+    expect(socket.events()).toContainEqual(
+      expect.objectContaining({ type: "error", code: "mode_language_unsupported" }),
+    );
+    // Socket must NOT be closed (non-fatal)
     expect(socket.readyState).toBe(1);
   });
 
