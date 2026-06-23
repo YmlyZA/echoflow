@@ -17,6 +17,32 @@ export type RealtimeSessionOptions = {
   defaultTargetLanguage: string;
 };
 
+// Opt-in session tracing (ECHOFLOW_LATENCY_DEBUG=1). Prints connection
+// lifecycle + every outbound ServerEvent with a wall-clock stamp, so an
+// interpret/pipeline session can be watched live without a debugger.
+const SESSION_DEBUG = process.env.ECHOFLOW_LATENCY_DEBUG === "1";
+
+function dlog(message: string): void {
+  if (SESSION_DEBUG) {
+    console.error(`[session ${new Date().toISOString().slice(11, 23)}] ${message}`);
+  }
+}
+
+function summarizeEvent(event: ServerEvent): string {
+  switch (event.type) {
+    case "language":
+      return `language  ${event.sourceLanguage} -> ${event.targetLanguage}`;
+    case "partial":
+      return `partial   [${event.segmentId}] "${event.sourceText}"`;
+    case "final":
+      return `final     [${event.segmentId}] "${event.sourceText}" -> "${event.translatedText}" [${event.startTimeMs}..${event.endTimeMs}ms]`;
+    case "error":
+      return `error     ${event.code}: ${event.message}`;
+    default:
+      return JSON.stringify(event);
+  }
+}
+
 export class RealtimeSession {
   private targetLanguage: string;
   private closed = false;
@@ -30,6 +56,7 @@ export class RealtimeSession {
   }
 
   start(): void {
+    dlog("connection opened");
     this.options.socket.on("message", (data, isBinary) => {
       void this.handleFrame(data, isBinary).catch((error: unknown) => {
         this.sendError(getErrorCode(error), getErrorMessage(error));
@@ -45,6 +72,7 @@ export class RealtimeSession {
       return;
     }
     this.closed = true;
+    dlog("connection closed");
     await this.stream?.close();
   }
 
@@ -91,6 +119,7 @@ export class RealtimeSession {
     if (this.stream !== undefined) {
       return;
     }
+    dlog(`open      mode=${mode} target=${this.targetLanguage}`);
     let source;
     try {
       source = this.options.createSubtitleSource(mode, this.targetLanguage);
@@ -142,6 +171,7 @@ export class RealtimeSession {
     ) {
       return;
     }
+    dlog(summarizeEvent(event));
     this.options.socket.send(JSON.stringify(event));
   }
 }
