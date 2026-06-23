@@ -25,6 +25,11 @@ const historyStore = createHistoryStore();
 let sessionState: SessionState = createInitialSessionState();
 let detectedSourceLanguage = "unknown";
 let stateLoaded: Promise<void> | undefined;
+// A toolbar click that lands while the previous session is still tearing down
+// (status "stopping") is queued here and started once the stop completes,
+// rather than being silently dropped. Lets a quick stop→start (e.g. right after
+// changing the subtitle mode) take effect in a single off/on toggle.
+let pendingStartTab: chrome.tabs.Tab | undefined;
 
 function ensureStateLoaded(): Promise<void> {
   stateLoaded ??= loadPersistedState().then((persisted) => {
@@ -67,17 +72,32 @@ async function handleActionClick(tab: chrome.tabs.Tab): Promise<void> {
 
   if (sessionState.status === "connecting" || sessionState.status === "running") {
     await stopSession("action_click");
+    // A click may have arrived during the teardown; honor it now that we're idle.
+    await drainPendingStart();
     return;
   }
 
   if (sessionState.status === "stopping") {
+    // A stop is already in flight; queue this toggle instead of dropping it.
+    pendingStartTab = tab;
     return;
   }
 
   await startSession(tab);
 }
 
+async function drainPendingStart(): Promise<void> {
+  const tab = pendingStartTab;
+  pendingStartTab = undefined;
+  if (tab !== undefined && sessionState.status === "idle") {
+    await startSession(tab);
+  }
+}
+
 async function startSession(tab: chrome.tabs.Tab): Promise<void> {
+  // Any actual start consumes the queue, so a start cannot fire spuriously later.
+  pendingStartTab = undefined;
+
   if (typeof tab.id !== "number") {
     return;
   }
