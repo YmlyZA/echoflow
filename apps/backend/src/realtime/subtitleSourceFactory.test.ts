@@ -8,7 +8,7 @@ import { createSubtitleSourceFactory } from "./subtitleSourceFactory.js";
 const AST_CONFIG = {
   asr: { provider: "fake" as const },
   translation: { provider: "fake" as const },
-  interpret: { appKey: "a", accessKey: "b", resourceId: "r", endpoint: "wss://x" },
+  interpret: { apiKey: "a", resourceId: "r", endpoint: "wss://x" },
 };
 
 describe("createSubtitleSourceFactory", () => {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ServerEvent } from "@echoflow/protocol";
 import type {
+  AstConnectOptions,
   AstTransport,
   AstTransportCallbacks,
   AstTransportFactory,
@@ -12,10 +13,13 @@ function stubTransport(): {
   emit: (data: Buffer) => void;
   fail: (error: Error) => void;
   sent: Buffer[];
+  options: () => AstConnectOptions | undefined;
 } {
   let cbs: AstTransportCallbacks | undefined;
+  let opts: AstConnectOptions | undefined;
   const sent: Buffer[] = [];
-  const factory: AstTransportFactory = (_options, callbacks) => {
+  const factory: AstTransportFactory = (options, callbacks) => {
+    opts = options;
     cbs = callbacks;
     const transport: AstTransport = { send: (d) => sent.push(d), close: () => {} };
     return transport;
@@ -25,24 +29,35 @@ function stubTransport(): {
     emit: (data) => cbs?.onMessage(data),
     fail: (error) => cbs?.onError(error),
     sent,
+    options: () => opts,
   };
 }
 
 const CONFIG = {
-  appKey: "ak",
-  accessKey: "sk",
+  apiKey: "ak",
   resourceId: "volc.service_type.10053",
   endpoint: "wss://x",
 };
 
-// Ground-truth hex vectors from astProtocol.test.ts
-// SourceSubtitleResponse(651), text "hi"
-const SOURCE_HEX = "119420000000028B0000000000000004220268 69".replace(/\s/g, "");
-// TranslationSubtitleEnd(655), text "你好"
-const TRANSLATION_END_HEX =
-  "11942000000002 8F00000000000000082206E4BDA0E5A5BD".replace(/\s/g, "");
+// Bare TranslateResponse protobuf vectors (no frame envelope).
+// SourceSubtitleResponse: event(2)=651 [10 8b05], text(4)="hi" [22 02 6869]
+const SOURCE_HEX = "108b0522026869";
+// TranslationSubtitleEnd: event(2)=655 [10 8f05], text(4)="你好" [22 06 e4bda0e5a5bd]
+const TRANSLATION_END_HEX = "108f052206e4bda0e5a5bd";
 
 describe("InterpretationSubtitleSource", () => {
+  it("connects with new-console auth headers (X-Api-Key + X-Api-Resource-Id)", () => {
+    const t = stubTransport();
+    const source = new InterpretationSubtitleSource(CONFIG, "zh-CN", t.factory);
+    source.open({ onEvent: () => {} });
+    const headers = t.options()?.headers ?? {};
+    expect(headers["X-Api-Key"]).toBe("ak");
+    expect(headers["X-Api-Resource-Id"]).toBe("volc.service_type.10053");
+    // old-console headers must not be sent
+    expect(headers["X-Api-App-Key"]).toBeUndefined();
+    expect(headers["X-Api-Access-Key"]).toBeUndefined();
+  });
+
   it("emits a language event and forwards a partial for a source frame", () => {
     const t = stubTransport();
     const events: ServerEvent[] = [];
@@ -51,7 +66,7 @@ describe("InterpretationSubtitleSource", () => {
     t.emit(Buffer.from(SOURCE_HEX, "hex"));
     expect(events).toContainEqual({
       type: "language",
-      sourceLanguage: "auto",
+      sourceLanguage: "en", // counterpart of zh target (auto-detect unsupported by AST)
       targetLanguage: "zh-CN",
     });
     expect(events).toContainEqual({

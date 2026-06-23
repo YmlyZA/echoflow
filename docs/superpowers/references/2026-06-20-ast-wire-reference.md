@@ -3,7 +3,15 @@
 > **Authoritative source for all vendor wire specifics in Cycle 2 (interpret mode).**
 > Where any task's inferred constant or boundary trigger conflicts with this doc, **this doc wins.**
 
-**Status:** Grounded from three authoritative sources (no live capture required for the static schema):
+> **✅ VALIDATED & CORRECTED at live e2e (2026-06-22).** A real AST session
+> (`scripts/volcengine-ast-smoke.ts`) proved the **frame envelope derived from sources 2+3 was WRONG**:
+> `/api/v4/ast/v2/translate` is a **gRPC `ASTService.Translate` stream over WebSocket** that exchanges
+> **bare serialized protobuf** messages (one `TranslateRequest`/`TranslateResponse` per ws binary
+> message) — there is **no 4-byte header, no event-int32, no sessionId-length envelope**. The protobuf
+> **schema (field numbers, event ids) from source 1 was correct.** §2, §4, §5 below are the corrected,
+> e2e-confirmed protocol; the original envelope derivation is struck through for the record.
+
+**Status:** Schema grounded from three sources; **framing + runtime behaviour confirmed by live e2e**:
 
 1. **Vendor `.proto` schema** — `protobuf/protos.tar.gz`, downloaded from doc
    [6561/1756902](https://www.volcengine.com/docs/6561/1756902) ("同声传译2.0-API接入文档"),
@@ -25,85 +33,41 @@ schema); confirm during the Task 9 real session and amend here if reality differ
 
 - **Endpoint:** `wss://openspeech.bytedance.com/api/v4/ast/v2/translate`
 - **Resource-Id:** `volc.service_type.10053` (AST is a **separate subscription** from ASR)
-- **Auth headers** (mirror the ASR adapter's block exactly):
-  - `X-Api-App-Key: <VOLCENGINE_AST_APP_KEY>`
-  - `X-Api-Access-Key: <VOLCENGINE_AST_ACCESS_KEY>`
+- **Auth headers** (new-console scheme — a single API Key, *not* the ASR adapter's app-id/access-key pair):
+  - `X-Api-Key: <VOLCENGINE_AST_API_KEY>`
   - `X-Api-Resource-Id: volc.service_type.10053`
-  - `X-Api-Request-Id: <uuid>` (per connection)
+  - `X-Api-Request-Id: <uuid>` (per connection; tracing only)
+  - On handshake the server returns `X-Tt-Logid` — capture/log it to correlate issues with Volcengine.
+  - (Legacy old-console scheme used `X-Api-App-Id` + `X-Api-Access-Key`; we target the new console.)
 - After `FinishSession`, the WS connection is **not** closed by the server and may be reused with a
   fresh `StartSession`. (We open one session per connection and close the socket; reuse is out of scope.)
 
 ---
 
-## 2. Binary frame layout (event protocol)
+## 2. Frame layout — bare protobuf (e2e-confirmed)
 
-This is the **event-based** variant of the Volcengine bigmodel binary protocol (NOT the
-sequence-based variant the ASR adapter uses). Every frame carries an **event id** and a
-length-prefixed **session id** between the header and the payload.
+**Each WebSocket binary message is exactly ONE serialized protobuf message** — `TranslateRequest`
+upstream, `TranslateResponse` downstream. There is **no binary header, no event-int32 prefix, and no
+sessionId-length envelope.** The event id and session id are **protobuf fields** (`event` = field 2;
+`SessionID` = `request_meta`/`response_meta` field 6). The ws frame itself delimits the message.
 
-### 2.1 Header — 4 bytes
-
-| Byte | Bits | Meaning | Value |
-|---|---|---|---|
-| 0 | `(version<<4) \| headerSize` | version=`0b0001`, headerSize=`0b0001` (×4 = 4 bytes) | `0x11` |
-| 1 | `(messageType<<4) \| flags` | flags = `0b0100` = **MsgTypeFlagWithEvent** | see below |
-| 2 | `(serialization<<4) \| compression` | | see below |
-| 3 | reserved | | `0x00` |
-
-**Message types** (high nibble of byte 1):
-
-| Name | Value |
-|---|---|
-| `FULL_CLIENT_REQUEST` | `0b0001` |
-| `AUDIO_ONLY_REQUEST` | `0b0010` |
-| `FULL_SERVER_RESPONSE` | `0b1001` |
-| `AUDIO_ONLY_RESPONSE` | `0b1011` |
-| `ERROR_INFORMATION` | `0b1111` |
-
-**Message-type-specific flags** (low nibble of byte 1): AST uses `0b0100` (**WITH_EVENT**) on
-every frame. (Other family variants use `0b0001` pos-sequence / `0b0011` neg-sequence; AST does not.)
-
-**Serialization** (high nibble of byte 2):
-
-| Name | Value |
-|---|---|
-| `RAW` (no serialization) | `0b0000` |
-| `JSON` | `0b0001` |
-| **`PROTOBUF`** | **`0b0010`** |
-| `THRIFT` | `0b0011` |
-
-**Compression** (low nibble of byte 2): `NONE = 0b0000`, `GZIP = 0b0001`. **AST uses `NONE`.** `[confirm @ e2e]`
-
-→ **Control/full frames** (StartSession, FinishSession, all server subtitle/usage/error frames):
-byte 2 = `(PROTOBUF<<4) | NONE` = **`0x20`**.
-→ **Audio frames** (TaskRequest, raw PCM bytes, no protobuf): byte 2 = `(RAW<<4) | NONE` = **`0x00`**.
-
-### 2.2 Body — after the 4-byte header
+How we know: the live server returned a bare `TranslateResponse` (`0a …` = field 1 `response_meta`,
+decodes cleanly from byte 0), and rejected our original enveloped frame with
+`"unmarshal payload: proto unmarshal: proto: cannot parse"` — i.e. it tried to unmarshal the whole ws
+message directly as protobuf and choked on the `0x11`-header bytes.
 
 ```
-header[4]
-  event           : int32  BE  (4 bytes)   // events.proto Type enum value
-  sessionIdLen    : uint32 BE  (4 bytes)
-  sessionId       : bytes (UTF-8, length = sessionIdLen)   // our connection UUID
-  payloadLen      : uint32 BE  (4 bytes)
-  payload         : bytes (length = payloadLen)            // protobuf, or raw PCM for audio
+ws binary message  ==  serialize(TranslateRequest)     // client → server
+ws binary message  ==  serialize(TranslateResponse)    // server → client
 ```
 
-Both directions use this same envelope (the server frame also carries `event` + `sessionId`). `[confirm @ e2e: server-side sessionId presence/position]`
-
-### 2.3 Worked example (decoded from the doc's byte array)
-
-The realtime-dialogue StartSession example (JSON variant, but identical envelope):
-
-```
-17 14 10 00 | 00 00 00 64 | 00 00 00 24 | "75a6126e-427f-49a1-a2c1-621143cb9db3" | 00 00 00 3c | <60-byte payload>
-^header      ^event=100     ^sidLen=36     ^36-byte session UUID                    ^payloadLen=60
-0x11 0x14 0x10 0x00
-  └ ver1/hsize1  └ FULL_CLIENT(0b0001)<<4 | WITH_EVENT(0b0100)  └ JSON(0b0001)<<4|NONE  └ reserved
-```
-
-For **AST** the only envelope difference is byte 2 → `0x20` (PROTOBUF instead of JSON), and the
-payload is a `TranslateRequest`/`TranslateResponse` protobuf message instead of JSON.
+> <details><summary>❌ Original (WRONG) envelope derivation — kept for the record</summary>
+>
+> Derived from the bigmodel *event-protocol* family (sources 2+3): a 4-byte header
+> `0x11 (msgType<<4|0x04) (ser<<4|0x00) 0x00`, then `event:int32BE | sidLen:uint32BE | sid | payloadLen:uint32BE | payload`.
+> **This is a DIFFERENT protocol** (realtime-dialogue / sauc bigmodel), not AST v2. AST v2 uses plain
+> gRPC-over-WS protobuf. The header/serialization/message-type nibbles do **not** apply here.
+> </details>
 
 ---
 
@@ -145,8 +109,8 @@ payload is a `TranslateRequest`/`TranslateResponse` protobuf message instead of 
 
 | Field | # | Wire type | Notes |
 |---|---|---|---|
-| `request_meta` (`common.RequestMeta`) | 1 | len-delim (msg) | optional; auth is via headers, so we omit |
-| `event` (`event.Type`) | 2 | varint | mirror the frame's event id |
+| `request_meta` (`common.RequestMeta`) | 1 | len-delim (msg) | **REQUIRED** — carries `SessionID` (6) for WS multiplexing; we also set `ResourceID` (4). e2e: session fails to start without it |
+| `event` (`event.Type`) | 2 | varint | the event id (100/102/200) — there is no separate header event |
 | `user` (`understanding.User`) | 3 | len-delim (msg) | optional |
 | `source_audio` (`understanding.Audio`) | 4 | len-delim (msg) | audio format params |
 | `target_audio` (`understanding.Audio`) | 5 | len-delim (msg) | s2s only — omit for s2t |
@@ -159,7 +123,7 @@ payload is a `TranslateRequest`/`TranslateResponse` protobuf message instead of 
 | Field | # | Wire type | Notes |
 |---|---|---|---|
 | `mode` | 1 | string | **`"s2t"`** (subtitles only; `"s2s"` adds TTS — out of scope) |
-| `source_language` | 2 | string | **empty/`"auto"` → auto-detect.** (No separate detect flag exists.) |
+| `source_language` | 2 | string | **MUST be explicit** (`"en"`/`"zh"`). ⚠ e2e: empty source → `langPair:"2zh"` → `InvalidData ... not found`. **Auto-detect is NOT supported by `model:default`.** We send the EN↔ZH counterpart of the target. |
 | `target_language` | 3 | string | AST code: `zh` or `en` |
 | `speaker_id` | 4 | string | unused |
 | `corpus` (`understanding.Corpus`) | 100 | len-delim | unused |
@@ -232,61 +196,84 @@ payload is a `TranslateRequest`/`TranslateResponse` protobuf message instead of 
 | `ERROR_PROCESSING` | 21100 |
 | `ERROR_UNKNOWN` | 29900 |
 
-> These are the gateway/business codes. (The user-facing error-code research earlier referenced
-> `45000xxx`-style gateway codes — those are HTTP/gateway-layer; the in-band protobuf `StatusCode`
-> uses this `Code` enum. `[confirm @ e2e]`)
+> ⚠ **e2e correction:** the in-band `ResponseMeta.StatusCode` does **NOT** use this `Code` enum — it
+> carries **8-digit gateway codes**. Observed live:
+> - `20000000` + `"OK"` → success (on `SessionStarted`, subtitle frames). **This, not `21000`, is the success code.**
+> - `45000000` + `"unmarshal payload…"` / `45000001` + `"[Invalid argument] InvalidData…"` → client error.
+> - Pattern: `2xxxxxxx` = success, `4xxxxxxx` = client error, `5xxxxxxx` = server error.
+>
+> The codec's `isAstOkStatus` treats `0`, `21000`, and the whole `[20000000, 30000000)` range as
+> non-errors; everything else surfaces as `{kind:"error"}`. The `Code` enum above (21000/11xxx) is the
+> *backend service* layer and may appear nested, but the gateway codes are what reach us.
 
 ---
 
-## 4. Outbound frame assembly (what our codec sends)
+## 4. Outbound frame assembly (what our codec sends) — bare `TranslateRequest` protobuf
+
+No header on any frame. Each is one serialized `TranslateRequest`. `SessionID` is the same UUID for
+the whole connection, set in `request_meta` on **every** frame.
 
 ### `encodeStartSession` — event 100
 
-- Header: `0x11 0x14 0x20 0x00` (FULL_CLIENT | WITH_EVENT, PROTOBUF/NONE)
-- event = `100`, sessionId = our UUID
-- payload = `TranslateRequest`:
-  - `event` (2) = `100`
-  - `source_audio` (4) = `Audio { format(4)="pcm", rate(7)=16000, bits(8)=16, channel(9)=1 }`
-  - `request` (6) = `ReqParams { mode(1)="s2t", source_language(2)="" /*auto*/, target_language(3)=<zh|en> }`
+```
+TranslateRequest {
+  request_meta (1) = RequestMeta { ResourceID(4)="volc.service_type.10053", SessionID(6)=<uuid> }
+  event        (2) = 100
+  source_audio (4) = Audio { format(4)="pcm", rate(7)=16000, bits(8)=16, channel(9)=1 }
+  request      (6) = ReqParams { mode(1)="s2t", source_language(2)=<en|zh>, target_language(3)=<zh|en> }
+}
+```
 
-### `encodeAudioRequest(audio)` — event 200
+### `encodeAudioRequest(pcm)` — event 200
 
-- Header: `0x11 0x24 0x00 0x00` (AUDIO_ONLY | WITH_EVENT, RAW/NONE) `[confirm @ e2e: AUDIO_ONLY vs FULL_CLIENT-wrapping]`
-- event = `200`, sessionId = our UUID
-- payload = **raw PCM bytes** (16 kHz/16-bit/mono, ~80 ms packets), no protobuf wrapper
+```
+TranslateRequest {
+  request_meta (1) = RequestMeta { SessionID(6)=<uuid> }
+  event        (2) = 200            // TaskRequest
+  source_audio (4) = Audio { binary_data(14) = <raw 16k/16-bit/mono PCM chunk> }
+}
+```
+
+⚠ Audio rides in `source_audio.binary_data` (field 14, bytes) — **not** a raw-PCM frame payload.
 
 ### `encodeFinishSession()` — event 102
 
-- Header: `0x11 0x14 0x20 0x00`
-- event = `102`, sessionId = our UUID
-- payload = empty (or a `TranslateRequest { event:102 }`) `[confirm @ e2e]`
+```
+TranslateRequest {
+  request_meta (1) = RequestMeta { SessionID(6)=<uuid> }
+  event        (2) = 102
+}
+```
 
 ---
 
 ## 5. Inbound parsing & segment-boundary semantics (CRITICAL for the reconciler)
 
-Parse: header → `event` (int32 BE @ offset 4) → `sessionIdLen` (uint32 @ 8) → skip sessionId →
-`payloadLen` (uint32) → payload. Decode payload as `TranslateResponse`; read `text` (field 4).
+Parse: decode the whole ws message as a `TranslateResponse`; read `event` (field 2), and
+`response_meta` (field 1) for status. Read subtitle `text` (4), `start_time` (5), `end_time` (6).
 
-**Per-utterance lifecycle** (each spoken sentence):
+**Per-utterance lifecycle** (each spoken sentence) — confirmed live:
 
 ```
-SourceSubtitleStart(650)      → source line begins
-SourceSubtitleResponse(651)*  → revising source text   (CUMULATIVE full line, not a delta) [confirm @ e2e]
-SourceSubtitleEnd(652)        → source line finalized
-TranslationSubtitleStart(653) → translation begins
-TranslationSubtitleResponse(654)* → revising translation (cumulative) [confirm @ e2e]
-TranslationSubtitleEnd(655)   → translation finalized   ← our render boundary
+SourceSubtitleStart(650)          → source line begins
+SourceSubtitleResponse(651)*      → DELTA fragments: "Hello" · "." · " "   (ts = 0)
+SourceSubtitleEnd(652)            → CUMULATIVE line "Hello. " + REAL ts [20..340]
+TranslationSubtitleStart(653)     → translation begins
+TranslationSubtitleResponse(654)* → DELTA fragments: "你" · "好" · "。"      (ts = 0)
+TranslationSubtitleEnd(655)       → CUMULATIVE "你好。" + REAL ts [20..340]   ← our render boundary
 ```
 
-- **`text` is the full line so far (cumulative), not an incremental delta.** Each Response replaces the
-  prior partial. `[confirm @ e2e]`
-- **Source↔translation correlation is by ORDER** (the per-utterance source cycle precedes its
-  translation cycle). `TranslateResponse` carries **no segment-id field** to join on; `start_time`/
-  `end_time` (5/6) can corroborate but ordering is the primary key. `[confirm @ e2e]`
-- **Detected source language is NOT in the subtitle payload.** `TranslateResponse` has no `language`
-  field. → the source emits `sourceLanguage: "auto"`. (If `SessionStarted(150)` turns out to carry a
-  detected language, amend here.) `[confirm @ e2e]`
+- ⚠ **MIXED delta/cumulative (the load-bearing finding):** non-final Responses (651/654) are
+  **DELTA fragments**; the End frames (652/655) carry the **CUMULATIVE** full line. The reconciler
+  **accumulates** 651 deltas for live partials, then overwrites with the 652 cumulative line.
+- ⚠ **Timestamps live only on the End frames.** 651/654 report `start_time=end_time=0`; 652/655 carry
+  the real utterance-relative ms (observed `[20..340]`, `[820..2740]`, `[3220..5620]`). The reconciler
+  captures bounds from the source-End (652) and emits them on the `final`.
+- **Source↔translation correlation is by ORDER** (source cycle precedes its translation cycle); no
+  segment-id field. Confirmed: `start_time`/`end_time` match between the paired 652 and 655.
+- **Detected source language is NOT reported** — `TranslateResponse` has no `language` field, and since
+  the source must be sent explicitly anyway, the adapter emits the known source code (the target's
+  EN↔ZH counterpart), not `"auto"`.
 
 **Mapping to our `AstServerEvent` → reconciler (matches the plan's model):**
 
@@ -305,19 +292,29 @@ This yields the intended UX: **source live (651 → partial), translation a beat
 
 ---
 
-## 6. Open items to confirm at Task 9 (real session)
+## 6. Resolved at live e2e (2026-06-22)
 
-1. Compression really `NONE` (not gzip) for protobuf payloads.
-2. Audio frames are `AUDIO_ONLY_REQUEST` + raw PCM (vs. a `TranslateRequest` wrapping `binary_data`).
-3. Server frame envelope includes `sessionId` at the same offset (symmetric with client).
-4. `text` in Response frames is cumulative (replace) vs. delta (append).
-5. `SessionFailed` error code/message live in `response_meta` → `StatusCode`/`Message`.
-6. Whether any inbound frame (e.g. `SessionStarted`) reports the detected source language.
-7. Observed end-to-end latency (expected ~2–3 s for s2t).
-8. That `start_time` (field 5) / `end_time` (field 6) on the subtitle frames carry meaningful
-   utterance-relative ms. **The codec now parses these and the reconciler emits them on the `final`**
-   (so interpret-mode history timestamps work); the *values* still need a real session to confirm
-   they aren't always 0 / aren't in some other unit.
+All items below were confirmed (or corrected) by `scripts/volcengine-ast-smoke.ts` against the real endpoint:
 
-If any differs, amend the relevant section above and adjust `astConstants.ts` / the codec — **this
-reference remains authoritative.**
+1. ~~Compression `NONE`~~ — **N/A.** No binary header exists; framing is bare protobuf (§2).
+2. ~~Audio = `AUDIO_ONLY_REQUEST` + raw PCM~~ — **CORRECTED.** Audio is a `TranslateRequest` with the PCM
+   in `source_audio.binary_data` (field 14). No raw-PCM frame.
+3. ~~Server sessionId at symmetric offset~~ — **N/A.** Session id is a protobuf field (`response_meta.SessionID`), not an envelope field.
+4. **`text` cumulative vs delta — RESOLVED (mixed):** non-final 651/654 = **delta**, final 652/655 =
+   **cumulative**. Reconciler accumulates deltas, finalizes on the cumulative End frame (§5).
+5. **Error in `response_meta` — CONFIRMED**, but the code is an **8-digit gateway code**, not the `Code`
+   enum, and errors can arrive with `event=0` (None). See §3.5.
+6. **Detected source language — RESOLVED:** not reported, and **auto-detect is unsupported** (§3.2). The
+   adapter sends an explicit source (target's EN↔ZH counterpart) and emits that as `sourceLanguage`.
+7. **Latency — measured:** ~0.85 s from speech to paired `final` for a short utterance; partials track
+   within ~1 s. Well under the expected 2–3 s.
+8. **`start_time`/`end_time` — CONFIRMED meaningful** (utterance-relative ms, on the End frames only):
+   `[20..340]`, `[820..2740]`, `[3220..5620]` across three sentences. Reconciler emits them on `final`.
+
+**New product-level finding:** AST interpret only works for an explicit, known source language. With
+Cycle 2's zh/en-constrained targets this is fine (source = the counterpart), but it is **not**
+arbitrary-language auto-detect — content whose spoken language isn't the target's counterpart will
+mistranslate. Broader source selection is future work.
+
+This reference is now e2e-accurate. If the vendor protocol changes, amend the relevant section and
+adjust `astConstants.ts` / the codec — **this reference remains authoritative.**

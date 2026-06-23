@@ -21,36 +21,45 @@ export class InterpretReconciler {
 
   reconcile(event: AstServerEvent): InterpretSegment[] {
     if (event.kind === "source") {
-      // Capture startTime from the first source event of this segment (when sourceText was empty).
-      if (this.sourceText === "") {
-        this.sourceStartTime = event.startTime;
+      if (!event.final) {
+        // 651: non-final source frames are DELTA fragments — accumulate them
+        // into the current line. Timestamps are 0 on these frames.
+        this.sourceText += event.text;
+        return [
+          {
+            kind: "partial",
+            segmentId: `ast-${this.ordinal}`,
+            text: this.sourceText,
+            startTimeMs: this.sourceStartTime,
+          },
+        ];
       }
-      this.sourceEndTime = event.endTime;
+      // 652: the source end frame carries the CUMULATIVE line plus the real
+      // start/end timestamps. Treat it as authoritative; don't render yet —
+      // the translation end frame is the segment boundary.
       this.sourceText = event.text;
-      if (event.final) {
-        return []; // source end is not a render boundary; translation end is
-      }
-      return [
-        {
-          kind: "partial",
-          segmentId: `ast-${this.ordinal}`,
-          text: this.sourceText,
-          startTimeMs: this.sourceStartTime,
-        },
-      ];
+      this.sourceStartTime = event.startTime;
+      this.sourceEndTime = event.endTime;
+      return [];
     }
     if (event.kind === "translation") {
-      this.translationText = event.text;
       if (!event.final) {
-        return []; // buffer revising translation; surface only on end
+        // 654: non-final translation frames are DELTA fragments — buffer them;
+        // we surface the cumulative translation only on the end frame.
+        return [];
       }
+      // 655: the translation end frame carries the CUMULATIVE translation and
+      // real timestamps. Pair it with the buffered source line and emit.
+      this.translationText = event.text;
       const final: InterpretSegment = {
         kind: "final",
         segmentId: `ast-${this.ordinal}`,
         text: this.sourceText,
         translatedText: this.translationText,
-        startTimeMs: this.sourceStartTime,
-        endTimeMs: this.sourceEndTime,
+        // Prefer the source-end timestamps; fall back to the translation-end
+        // frame's (they match in practice) if no source-end was seen.
+        startTimeMs: this.sourceStartTime || event.startTime,
+        endTimeMs: this.sourceEndTime || event.endTime,
       };
       this.ordinal += 1;
       this.sourceText = "";

@@ -24,7 +24,7 @@ describe("isInterpretAvailable", () => {
     const config: ProviderConfig = {
       asr: { provider: "fake" },
       translation: { provider: "fake" },
-      interpret: { appKey: "a", accessKey: "b", resourceId: "r", endpoint: "wss://x" },
+      interpret: { apiKey: "a", resourceId: "r", endpoint: "wss://x" },
     };
     expect(isInterpretAvailable(config)).toBe(true);
   });
