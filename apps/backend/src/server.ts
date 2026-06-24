@@ -1,6 +1,7 @@
 import websocket from "@fastify/websocket";
 import Fastify, { type FastifyInstance } from "fastify";
 import { createConfig, type BackendConfigInput } from "./config.js";
+import { buildCapabilities } from "./realtime/capabilities.js";
 import { createSubtitleSourceFactory } from "./realtime/subtitleSourceFactory.js";
 import { RealtimeSession } from "./realtime/session.js";
 
@@ -11,6 +12,13 @@ export function createServer(input: BackendConfigInput = {}): FastifyInstance {
   void server.register(websocket);
 
   server.get("/healthz", async () => ({ ok: true }));
+
+  server.get("/v1/capabilities", async (request, reply) => {
+    if (request.headers["x-api-key"] !== config.apiKey) {
+      return reply.code(401).send({ error: "Unauthorized" });
+    }
+    return buildCapabilities(config.providers);
+  });
 
   void server.register(async (realtimeServer) => {
     realtimeServer.get(
