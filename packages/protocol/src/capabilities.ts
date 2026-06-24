@@ -39,11 +39,18 @@ function isLanguageOption(value: unknown): value is LanguageOption {
 function isModeCapabilities(value: unknown): value is ModeCapabilities {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Record<string, unknown>;
+  const defaultPairValid =
+    v.defaultPair === undefined ||
+    (typeof v.defaultPair === "object" &&
+      v.defaultPair !== null &&
+      typeof (v.defaultPair as Record<string, unknown>).source === "string" &&
+      typeof (v.defaultPair as Record<string, unknown>).target === "string");
   return (
     typeof v.available === "boolean" &&
     typeof v.autoDetect === "boolean" &&
     Array.isArray(v.languages) &&
-    v.languages.every(isLanguageOption)
+    v.languages.every(isLanguageOption) &&
+    defaultPairValid
   );
 }
 

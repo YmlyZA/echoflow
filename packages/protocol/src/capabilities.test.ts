@@ -48,4 +48,18 @@ describe("isCapabilitiesDescriptor", () => {
     expect(isCapabilitiesDescriptor({ modes: {} })).toBe(false);
     expect(isCapabilitiesDescriptor({ modes: { pipeline: {}, interpret: {} } })).toBe(false);
   });
+  it("rejects descriptor with non-string source in defaultPair", () => {
+    const malformed: unknown = {
+      modes: {
+        pipeline: { available: true, autoDetect: true, languages: [en] },
+        interpret: {
+          available: true,
+          autoDetect: false,
+          languages: [zh, en, ja],
+          defaultPair: { source: 42, target: "zh" },
+        },
+      },
+    };
+    expect(isCapabilitiesDescriptor(malformed)).toBe(false);
+  });
 });
