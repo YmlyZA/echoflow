@@ -6,7 +6,7 @@ import {
   isInterpretAvailable,
   type ProviderConfig,
 } from "../providers/providerConfig.js";
-import { isSupportedInterpretTarget } from "../providers/astLanguages.js";
+import { isSupportedAstPair, toAstLanguageCode } from "../providers/astLanguages.js";
 import { PipelineSubtitleSource } from "./pipelineSubtitleSource.js";
 import { InterpretationSubtitleSource } from "./interpretationSubtitleSource.js";
 import {
@@ -18,7 +18,7 @@ import {
 export function createSubtitleSourceFactory(
   config: ProviderConfig,
 ): SubtitleSourceFactory {
-  return (mode, targetLanguage) => {
+  return (mode, sourceLanguage, targetLanguage) => {
     if (mode === "pipeline") {
       return new PipelineSubtitleSource(
         createSpeechProvider(config.asr),
@@ -30,9 +30,9 @@ export function createSubtitleSourceFactory(
     if (!isInterpretAvailable(config) || config.interpret === undefined) {
       throw new ModeUnavailableError(mode);
     }
-    if (!isSupportedInterpretTarget(targetLanguage)) {
-      throw new ModeLanguageUnsupportedError(targetLanguage);
+    if (!isSupportedAstPair(toAstLanguageCode(sourceLanguage), toAstLanguageCode(targetLanguage))) {
+      throw new ModeLanguageUnsupportedError(sourceLanguage, targetLanguage);
     }
-    return new InterpretationSubtitleSource(config.interpret, targetLanguage);
+    return new InterpretationSubtitleSource(config.interpret, sourceLanguage, targetLanguage);
   };
 }

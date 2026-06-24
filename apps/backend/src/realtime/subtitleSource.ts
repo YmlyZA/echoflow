@@ -18,6 +18,7 @@ export interface SubtitleSource {
 
 export type SubtitleSourceFactory = (
   mode: SubtitleMode,
+  sourceLanguage: string,
   targetLanguage: string,
 ) => SubtitleSource;
 
@@ -29,8 +30,11 @@ export class ModeUnavailableError extends Error {
 }
 
 export class ModeLanguageUnsupportedError extends Error {
-  constructor(public readonly targetLanguage: string) {
-    super(`Target language "${targetLanguage}" is not supported in this mode`);
+  constructor(
+    public readonly sourceLanguage: string,
+    public readonly targetLanguage: string,
+  ) {
+    super(`Language pair "${sourceLanguage}" → "${targetLanguage}" is not supported in this mode`);
     this.name = "ModeLanguageUnsupportedError";
   }
 }

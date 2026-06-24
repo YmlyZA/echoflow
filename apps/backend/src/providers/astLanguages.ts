@@ -33,12 +33,6 @@ export function isSupportedAstPair(sourceAst: string, targetAst: string): boolea
   return s !== undefined && t !== undefined && validTarget(s, t);
 }
 
-export const INTERPRET_SUPPORTED_TARGETS = ["zh-CN", "zh-TW", "en"] as const;
-
-export function isSupportedInterpretTarget(target: string): boolean {
-  return (INTERPRET_SUPPORTED_TARGETS as readonly string[]).includes(target);
-}
-
 export function toAstLanguageCode(code: string): string {
   if (code === "zh-CN" || code === "zh-TW") {
     return "zh";

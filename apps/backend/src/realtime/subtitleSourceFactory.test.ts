@@ -14,23 +14,23 @@ const AST_CONFIG = {
 describe("createSubtitleSourceFactory", () => {
   it("builds a PipelineSubtitleSource for pipeline mode", () => {
     const factory = createSubtitleSourceFactory(DEFAULT_PROVIDER_CONFIG);
-    expect(factory("pipeline", "zh-CN")).toBeInstanceOf(PipelineSubtitleSource);
+    expect(factory("pipeline", "auto", "zh-CN")).toBeInstanceOf(PipelineSubtitleSource);
   });
 });
 
 describe("createSubtitleSourceFactory — interpret", () => {
-  it("builds an InterpretationSubtitleSource when configured + target supported", () => {
+  it("builds an InterpretationSubtitleSource when configured + pair supported", () => {
     const factory = createSubtitleSourceFactory(AST_CONFIG);
-    expect(factory("interpret", "zh-CN")).toBeInstanceOf(InterpretationSubtitleSource);
+    expect(factory("interpret", "en", "zh-CN")).toBeInstanceOf(InterpretationSubtitleSource);
   });
 
   it("throws ModeUnavailableError when interpret is not configured", () => {
     const factory = createSubtitleSourceFactory(DEFAULT_PROVIDER_CONFIG);
-    expect(() => factory("interpret", "zh-CN")).toThrow(ModeUnavailableError);
+    expect(() => factory("interpret", "en", "zh-CN")).toThrow(ModeUnavailableError);
   });
 
-  it("throws ModeLanguageUnsupportedError for an unsupported target", () => {
+  it("throws ModeLanguageUnsupportedError for an unsupported pair", () => {
     const factory = createSubtitleSourceFactory(AST_CONFIG);
-    expect(() => factory("interpret", "ja")).toThrow(ModeLanguageUnsupportedError);
+    expect(() => factory("interpret", "ja", "ko")).toThrow(ModeLanguageUnsupportedError);
   });
 });

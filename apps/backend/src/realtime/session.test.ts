@@ -59,11 +59,12 @@ function stubSource(): {
   return { source, emit: (e) => onEvent?.(e), ended: () => ended };
 }
 
-function startMessage(mode?: string): string {
+function startMessage(mode?: string, sourceLanguage?: string): string {
   return JSON.stringify({
     type: "start",
     targetLanguage: "zh-CN",
     ...(mode !== undefined ? { mode } : {}),
+    ...(sourceLanguage !== undefined ? { sourceLanguage } : {}),
   });
 }
 
@@ -128,8 +129,8 @@ describe("RealtimeSession", () => {
 
   it("maps ModeLanguageUnsupportedError to a non-fatal mode_language_unsupported error", () => {
     const socket = new FakeSocket();
-    const factory: SubtitleSourceFactory = (_mode, targetLanguage) => {
-      throw new ModeLanguageUnsupportedError(targetLanguage);
+    const factory: SubtitleSourceFactory = (_mode, sourceLanguage, targetLanguage) => {
+      throw new ModeLanguageUnsupportedError(sourceLanguage, targetLanguage);
     };
 
     const session = new RealtimeSession({
@@ -149,10 +150,10 @@ describe("RealtimeSession", () => {
 
   it("passes the requested mode and target language to the factory", () => {
     const socket = new FakeSocket();
-    const calls: Array<{ mode: string; targetLanguage: string }> = [];
+    const calls: Array<{ mode: string; sourceLanguage: string; targetLanguage: string }> = [];
     const stub = stubSource();
-    const factory: SubtitleSourceFactory = (mode, targetLanguage) => {
-      calls.push({ mode, targetLanguage });
+    const factory: SubtitleSourceFactory = (mode, sourceLanguage, targetLanguage) => {
+      calls.push({ mode, sourceLanguage, targetLanguage });
       return stub.source;
     };
 
@@ -166,15 +167,15 @@ describe("RealtimeSession", () => {
     // With explicit mode
     socket.emit("message", startMessage("pipeline"), false);
     expect(calls).toHaveLength(1);
-    expect(calls[0]).toEqual({ mode: "pipeline", targetLanguage: "zh-CN" });
+    expect(calls[0]).toEqual({ mode: "pipeline", sourceLanguage: "", targetLanguage: "zh-CN" });
   });
 
   it("passes the default pipeline mode when mode is omitted in start message", () => {
     const socket = new FakeSocket();
-    const calls: Array<{ mode: string; targetLanguage: string }> = [];
+    const calls: Array<{ mode: string; sourceLanguage: string; targetLanguage: string }> = [];
     const stub = stubSource();
-    const factory: SubtitleSourceFactory = (mode, targetLanguage) => {
-      calls.push({ mode, targetLanguage });
+    const factory: SubtitleSourceFactory = (mode, sourceLanguage, targetLanguage) => {
+      calls.push({ mode, sourceLanguage, targetLanguage });
       return stub.source;
     };
 
@@ -188,7 +189,28 @@ describe("RealtimeSession", () => {
     // Without mode — should default to "pipeline"
     socket.emit("message", startMessage(), false);
     expect(calls).toHaveLength(1);
-    expect(calls[0]).toEqual({ mode: "pipeline", targetLanguage: "zh-CN" });
+    expect(calls[0]).toEqual({ mode: "pipeline", sourceLanguage: "", targetLanguage: "zh-CN" });
+  });
+
+  it("threads sourceLanguage from start message into the factory", () => {
+    const socket = new FakeSocket();
+    const calls: Array<{ mode: string; sourceLanguage: string; targetLanguage: string }> = [];
+    const stub = stubSource();
+    const factory: SubtitleSourceFactory = (mode, sourceLanguage, targetLanguage) => {
+      calls.push({ mode, sourceLanguage, targetLanguage });
+      return stub.source;
+    };
+
+    const session = new RealtimeSession({
+      socket: socket as never,
+      createSubtitleSource: factory,
+      defaultTargetLanguage: "zh-CN",
+    });
+    session.start();
+
+    socket.emit("message", startMessage("pipeline", "en"), false);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toEqual({ mode: "pipeline", sourceLanguage: "en", targetLanguage: "zh-CN" });
   });
 
   it("calls stream end() then closes on stop", async () => {
