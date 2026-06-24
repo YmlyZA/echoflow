@@ -83,6 +83,7 @@ describe("settings storage", () => {
         serverUrl: " https://api.example.com ",
         apiKey: " secret ",
         targetLanguage: " zh-CN ",
+        sourceLanguage: " en ",
         subtitleFontSize: 24,
         mode: "pipeline"
       },
@@ -94,6 +95,7 @@ describe("settings storage", () => {
       serverUrl: "https://api.example.com",
       apiKey: "secret",
       targetLanguage: "zh-CN",
+      sourceLanguage: "en",
       subtitleFontSize: 24,
       mode: "pipeline"
     });
@@ -102,7 +104,7 @@ describe("settings storage", () => {
   it("defaults mode to pipeline and round-trips a stored mode", async () => {
     const storage = createMemoryStorage();
     await saveSettings(
-      { serverUrl: "http://127.0.0.1:8787", apiKey: "k", targetLanguage: "zh-CN", subtitleFontSize: 24, mode: "interpret" },
+      { serverUrl: "http://127.0.0.1:8787", apiKey: "k", targetLanguage: "zh-CN", sourceLanguage: "en", subtitleFontSize: 24, mode: "interpret" },
       storage,
     );
     const loaded = await loadSettings(storage, "en-US");
@@ -129,6 +131,24 @@ describe("interpret target constraints", () => {
     expect(coerceTargetForMode("interpret", "ja")).toBe("zh-CN");
     expect(coerceTargetForMode("interpret", "en")).toBe("en");
     expect(coerceTargetForMode("pipeline", "ja")).toBe("ja");
+  });
+});
+
+describe("sourceLanguage counterpart default", () => {
+  it("defaults sourceLanguage to 'en' when target is zh-CN", async () => {
+    const storage = createMemoryStorage();
+    // Seed storage without sourceLanguage to simulate absence (migration scenario)
+    await storage.set("echoflow.settings", { serverUrl: "http://x", apiKey: "k", targetLanguage: "zh-CN", subtitleFontSize: 24, mode: "interpret" });
+    const settings = await loadSettings(storage, "en-US");
+    expect(settings.sourceLanguage).toBe("en");
+  });
+
+  it("defaults sourceLanguage to 'zh' when target is English", async () => {
+    const storage = createMemoryStorage();
+    // Seed storage without sourceLanguage to simulate absence (migration scenario)
+    await storage.set("echoflow.settings", { serverUrl: "http://x", apiKey: "k", targetLanguage: "en", subtitleFontSize: 24, mode: "interpret" });
+    const settings = await loadSettings(storage, "en-US");
+    expect(settings.sourceLanguage).toBe("zh");
   });
 });
 

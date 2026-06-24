@@ -23,6 +23,7 @@ function OptionsApp() {
     serverUrl: "",
     apiKey: "",
     targetLanguage: "en",
+    sourceLanguage: "zh",
     subtitleFontSize: 24,
     mode: "pipeline"
   });
