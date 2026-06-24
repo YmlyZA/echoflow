@@ -85,6 +85,18 @@ describe("start mode field", () => {
   });
 });
 
+describe("sourceLanguage field", () => {
+  it("accepts a start message carrying sourceLanguage", () => {
+    expect(
+      isStartSessionMessage({ type: "start", sourceLanguage: "en", targetLanguage: "zh" }),
+    ).toBe(true);
+  });
+
+  it("rejects a non-string sourceLanguage", () => {
+    expect(isStartSessionMessage({ type: "start", sourceLanguage: 7 })).toBe(false);
+  });
+});
+
 describe("CANONICAL_PCM_AUDIO_FORMAT", () => {
   it("describes 16 kHz / 16-bit / mono signed PCM", () => {
     expect(CANONICAL_PCM_AUDIO_FORMAT).toEqual({
