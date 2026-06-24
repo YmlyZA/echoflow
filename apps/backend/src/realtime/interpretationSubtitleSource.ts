@@ -10,10 +10,7 @@ import {
   connectAstTransport,
   type AstTransportFactory,
 } from "../providers/astTransport.js";
-import {
-  counterpartAstLanguage,
-  toAstLanguageCode,
-} from "../providers/astLanguages.js";
+import { toAstLanguageCode } from "../providers/astLanguages.js";
 import { InterpretReconciler } from "../providers/interpretReconciler.js";
 import type { AudioFrame } from "../providers/types.js";
 import type { SubtitleSource, SubtitleSourceStream } from "./subtitleSource.js";
@@ -27,6 +24,7 @@ export type AstSourceConfig = {
 export class InterpretationSubtitleSource implements SubtitleSource {
   constructor(
     private readonly config: AstSourceConfig,
+    private readonly sourceLanguage: string,
     private readonly targetLanguage: string,
     private readonly connect: AstTransportFactory = connectAstTransport,
   ) {}
@@ -37,7 +35,7 @@ export class InterpretationSubtitleSource implements SubtitleSource {
   }): SubtitleSourceStream {
     const targetLanguage = this.targetLanguage;
     const targetAst = toAstLanguageCode(targetLanguage);
-    const sourceAst = counterpartAstLanguage(targetAst);
+    const sourceAst = toAstLanguageCode(this.sourceLanguage);
     const reconciler = new InterpretReconciler();
     const sessionId = randomUUID();
     let languageEmitted = false;

@@ -45,12 +45,3 @@ export function toAstLanguageCode(code: string): string {
   }
   return code;
 }
-
-/**
- * AST requires an explicit source language (auto-detect is unsupported by
- * model:default). Interpret targets are constrained to the zh/en pair, so the
- * source is the counterpart: target zh → source en, target en → source zh.
- */
-export function counterpartAstLanguage(targetAstCode: string): string {
-  return targetAstCode === "zh" ? "en" : "zh";
-}

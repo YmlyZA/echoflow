@@ -48,7 +48,7 @@ const TRANSLATION_END_HEX = "108f052206e4bda0e5a5bd";
 describe("InterpretationSubtitleSource", () => {
   it("connects with new-console auth headers (X-Api-Key + X-Api-Resource-Id)", () => {
     const t = stubTransport();
-    const source = new InterpretationSubtitleSource(CONFIG, "zh-CN", t.factory);
+    const source = new InterpretationSubtitleSource(CONFIG, "en", "zh-CN", t.factory);
     source.open({ onEvent: () => {} });
     const headers = t.options()?.headers ?? {};
     expect(headers["X-Api-Key"]).toBe("ak");
@@ -61,12 +61,12 @@ describe("InterpretationSubtitleSource", () => {
   it("emits a language event and forwards a partial for a source frame", () => {
     const t = stubTransport();
     const events: ServerEvent[] = [];
-    const source = new InterpretationSubtitleSource(CONFIG, "zh-CN", t.factory);
+    const source = new InterpretationSubtitleSource(CONFIG, "en", "zh-CN", t.factory);
     source.open({ onEvent: (e) => events.push(e) });
     t.emit(Buffer.from(SOURCE_HEX, "hex"));
     expect(events).toContainEqual({
       type: "language",
-      sourceLanguage: "en", // counterpart of zh target (auto-detect unsupported by AST)
+      sourceLanguage: "en",
       targetLanguage: "zh-CN",
     });
     expect(events).toContainEqual({
@@ -79,7 +79,7 @@ describe("InterpretationSubtitleSource", () => {
   it("emits a final with translation on a translation-end frame", () => {
     const t = stubTransport();
     const events: ServerEvent[] = [];
-    const source = new InterpretationSubtitleSource(CONFIG, "zh-CN", t.factory);
+    const source = new InterpretationSubtitleSource(CONFIG, "en", "zh-CN", t.factory);
     source.open({ onEvent: (e) => events.push(e) });
     t.emit(Buffer.from(SOURCE_HEX, "hex"));
     t.emit(Buffer.from(TRANSLATION_END_HEX, "hex"));
@@ -96,7 +96,7 @@ describe("InterpretationSubtitleSource", () => {
   it("routes a transport error to onError", () => {
     const t = stubTransport();
     let errored: Error | undefined;
-    const source = new InterpretationSubtitleSource(CONFIG, "zh-CN", t.factory);
+    const source = new InterpretationSubtitleSource(CONFIG, "en", "zh-CN", t.factory);
     source.open({ onEvent: () => {}, onError: (e) => (errored = e) });
     t.fail(new Error("boom"));
     expect(errored?.message).toBe("boom");
