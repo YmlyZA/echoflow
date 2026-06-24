@@ -30,6 +30,7 @@ export interface RealtimeClientOptions {
   tabTitle: string;
   tabUrl: string;
   targetLanguage: string;
+  sourceLanguage: string;
   mode: SubtitleMode;
   audioFormat: AudioFormatMetadata;
   clientCapabilities?: ClientCapabilities;
@@ -238,6 +239,7 @@ export class RealtimeClient {
       tabTitle: this.options.tabTitle,
       tabUrl: this.options.tabUrl,
       targetLanguage: this.options.targetLanguage,
+      sourceLanguage: this.options.sourceLanguage,
       audioFormat: this.options.audioFormat,
       clientCapabilities:
         this.options.clientCapabilities ?? DEFAULT_CLIENT_CAPABILITIES

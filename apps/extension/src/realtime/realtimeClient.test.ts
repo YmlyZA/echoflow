@@ -13,7 +13,7 @@ describe("RealtimeClient", () => {
   });
 
   it("sends session start metadata after the websocket opens", async () => {
-    const client = createClient();
+    const client = createClient({ sourceLanguage: "en" });
     const connected = client.connect();
 
     FakeWebSocket.instances[0].open();
@@ -25,6 +25,7 @@ describe("RealtimeClient", () => {
       tabTitle: "Example",
       tabUrl: "https://example.com/watch",
       targetLanguage: "zh-CN",
+      sourceLanguage: "en",
       mode: "pipeline",
       audioFormat: {
         mimeType: "audio/webm",
