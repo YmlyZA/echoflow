@@ -23,6 +23,22 @@ describe("fetchCapabilities", () => {
     expect(result).toEqual(DESCRIPTOR);
   });
 
+  it("appends v1/capabilities to a path-prefixed serverUrl", async () => {
+    const f = mockFetch(async (url) => {
+      expect(url).toBe("http://localhost:8787/api/v1/capabilities");
+      return new Response(JSON.stringify(DESCRIPTOR), { status: 200 });
+    });
+    await fetchCapabilities("http://localhost:8787/api", "k", f);
+  });
+
+  it("normalizes ws:// scheme to http:// for fetch", async () => {
+    const f = mockFetch(async (url) => {
+      expect(url).toBe("http://127.0.0.1:8787/v1/capabilities");
+      return new Response(JSON.stringify(DESCRIPTOR), { status: 200 });
+    });
+    await fetchCapabilities("ws://127.0.0.1:8787", "k", f);
+  });
+
   it("returns null on a non-200 response", async () => {
     const f = mockFetch(async () => new Response("nope", { status: 401 }));
     expect(await fetchCapabilities("http://127.0.0.1:8787", "k", f)).toBeNull();

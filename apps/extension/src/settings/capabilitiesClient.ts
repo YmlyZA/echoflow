@@ -10,7 +10,19 @@ export async function fetchCapabilities(
 ): Promise<CapabilitiesDescriptor | null> {
   let url: string;
   try {
-    url = new URL("/v1/capabilities", serverUrl).toString();
+    const parsed = new URL(serverUrl.trim());
+    if (parsed.protocol === "wss:") {
+      parsed.protocol = "https:";
+    } else if (parsed.protocol === "ws:") {
+      parsed.protocol = "http:";
+    }
+    const normalizedBase = parsed.pathname.endsWith("/")
+      ? parsed.pathname.slice(0, -1)
+      : parsed.pathname;
+    parsed.pathname = `${normalizedBase}/v1/capabilities`;
+    parsed.search = "";
+    parsed.hash = "";
+    url = parsed.toString();
   } catch {
     return null;
   }
