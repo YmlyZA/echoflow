@@ -215,6 +215,11 @@ Manual: verify a real interpret session still works with explicit source after t
 - Transport: **HTTP `/v1/capabilities`**, not a WS event.
 - Pair rule representation: **per-language flags + shared rule fn**, with explicit-list as the documented future escape hatch.
 
-## 13. Implementation phasing (for the plan)
+## 13. Implementation phasing — two separate PRs (decided)
 
-The plan may stage this as: **(P1)** protocol contract + backend descriptor/endpoint + wire `sourceLanguage` + settings model/migration (full-stack, behind the existing UI); **(P2)** design tokens + options-page redesign + language pickers consuming P1. P1 is shippable and testable without the redesign; P2 is purely additive UI on top.
+Split into two independently-shippable plans/PRs:
+
+- **P1 — language plumbing (full-stack, behind the existing UI).** Protocol `CapabilitiesDescriptor` + `validTarget` rule + guard; backend AST language table, descriptor builder, `GET /v1/capabilities`; wire `sourceLanguage` through `start` → factory pair-validation → `InterpretationSubtitleSource`; settings gains `sourceLanguage` + migration. The existing options form keeps working (it just starts sending an explicit source). Fully unit-testable; the smoke harness validates the real wire.
+- **P2 — options redesign (additive UI).** Direction-B tokens (`src/ui/theme.ts` + primitives), the sectioned options page, and the searchable-source → constrained-target pickers consuming P1's capabilities.
+
+This (P1) plan covers **P1 only**. P2 gets its own brainstorm-light → plan once P1 lands.
