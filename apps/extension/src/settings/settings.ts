@@ -29,7 +29,7 @@ export const DEFAULT_SUBTITLE_FONT_SIZE = 24;
 const DEFAULT_TARGET_LANGUAGE = "en";
 const DEFAULT_SUBTITLE_MODE: SubtitleMode = "pipeline";
 
-function counterpartSource(target: string): string {
+export function counterpartSource(target: string): string {
   return target === "zh-CN" || target === "zh-TW" ? "en" : "zh";
 }
 

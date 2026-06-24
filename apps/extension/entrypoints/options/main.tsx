@@ -10,6 +10,7 @@ import {
   type SettingsValidationErrors,
   SUBTITLE_MODE_OPTIONS,
   coerceTargetForMode,
+  counterpartSource,
   targetOptionsForMode,
   loadSettings,
   saveSettings,
@@ -133,9 +134,11 @@ function OptionsApp() {
           Target language
           <select
             value={settings.targetLanguage}
-            onChange={(event) =>
-              updateSetting("targetLanguage", event.currentTarget.value)
-            }
+            onChange={(event) => {
+              const nextTarget = event.currentTarget.value;
+              updateSetting("targetLanguage", nextTarget);
+              updateSetting("sourceLanguage", counterpartSource(nextTarget));
+            }}
             style={styles.input}
           >
             {targetOptionsForMode(settings.mode).map((language) => (
@@ -153,11 +156,10 @@ function OptionsApp() {
             value={settings.mode}
             onChange={(event) => {
               const nextMode = event.currentTarget.value as ExtensionSettings["mode"];
+              const coercedTarget = coerceTargetForMode(nextMode, settings.targetLanguage);
               updateSetting("mode", nextMode);
-              updateSetting(
-                "targetLanguage",
-                coerceTargetForMode(nextMode, settings.targetLanguage)
-              );
+              updateSetting("targetLanguage", coercedTarget);
+              updateSetting("sourceLanguage", counterpartSource(coercedTarget));
             }}
             style={styles.input}
           >

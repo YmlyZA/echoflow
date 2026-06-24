@@ -62,4 +62,18 @@ describe("isCapabilitiesDescriptor", () => {
     };
     expect(isCapabilitiesDescriptor(malformed)).toBe(false);
   });
+  it("rejects descriptor with non-string target in defaultPair", () => {
+    const malformed: unknown = {
+      modes: {
+        pipeline: { available: true, autoDetect: true, languages: [en] },
+        interpret: {
+          available: true,
+          autoDetect: false,
+          languages: [zh, en, ja],
+          defaultPair: { source: "en", target: 42 },
+        },
+      },
+    };
+    expect(isCapabilitiesDescriptor(malformed)).toBe(false);
+  });
 });
