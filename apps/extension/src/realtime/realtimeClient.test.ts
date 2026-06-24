@@ -172,6 +172,7 @@ function createClient(
     sessionId: "local-1",
     tabTitle: "Example",
     tabUrl: "https://example.com/watch",
+    sourceLanguage: "en",
     targetLanguage: "zh-CN",
     mode: "pipeline",
     audioFormat: {
