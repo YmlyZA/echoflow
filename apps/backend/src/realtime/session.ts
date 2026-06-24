@@ -45,6 +45,7 @@ function summarizeEvent(event: ServerEvent): string {
 
 export class RealtimeSession {
   private targetLanguage: string;
+  private sourceLanguage = "";
   private closed = false;
   private stream: SubtitleSourceStream | undefined;
   private pendingFrameMeta:
@@ -97,6 +98,7 @@ export class RealtimeSession {
     switch (message.type) {
       case "start":
         this.targetLanguage = message.targetLanguage ?? this.targetLanguage;
+        this.sourceLanguage = message.sourceLanguage ?? this.sourceLanguage;
         this.openSource(message.mode ?? "pipeline");
         return;
       case "audio_frame":
@@ -122,7 +124,7 @@ export class RealtimeSession {
     dlog(`open      mode=${mode} target=${this.targetLanguage}`);
     let source;
     try {
-      source = this.options.createSubtitleSource(mode, this.targetLanguage);
+      source = this.options.createSubtitleSource(mode, this.sourceLanguage, this.targetLanguage);
     } catch (error: unknown) {
       if (error instanceof ModeUnavailableError) {
         this.sendError("mode_unavailable", error.message);

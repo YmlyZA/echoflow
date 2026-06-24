@@ -32,6 +32,7 @@ export type SessionHandshakeRequest = {
   tabTitle: string;
   tabUrl: string;
   targetLanguage: string;
+  sourceLanguage?: string;
   audioFormat: AudioFormatMetadata;
   clientCapabilities?: ClientCapabilities;
 };
@@ -114,6 +115,7 @@ export function isStartSessionMessage(
     isOptionalString(value, "tabTitle") &&
     isOptionalString(value, "tabUrl") &&
     isOptionalString(value, "targetLanguage") &&
+    isOptionalString(value, "sourceLanguage") &&
     isOptionalAudioFormat(value, "audioFormat") &&
     isOptionalClientCapabilities(value, "clientCapabilities")
   );

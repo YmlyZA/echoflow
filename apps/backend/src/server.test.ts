@@ -40,6 +40,35 @@ const SEGMENT_ONE = [
   },
 ];
 
+describe("GET /v1/capabilities", () => {
+  it("serves capabilities to an authorized request", async () => {
+    const server = createServer({ apiKey: "dev-key" });
+    try {
+      const res = await server.inject({
+        method: "GET",
+        url: "/v1/capabilities",
+        headers: { "x-api-key": "dev-key" },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json() as { modes: { pipeline: { available: boolean }; interpret: { available: boolean } } };
+      expect(body.modes.pipeline.available).toBe(true);
+      expect(typeof body.modes.interpret.available).toBe("boolean");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("rejects /v1/capabilities without a valid key", async () => {
+    const server = createServer({ apiKey: "dev-key" });
+    try {
+      const res = await server.inject({ method: "GET", url: "/v1/capabilities" });
+      expect(res.statusCode).toBe(401);
+    } finally {
+      await server.close();
+    }
+  });
+});
+
 describe("backend realtime websocket", () => {
   it("emits language, progressive partials, and a final once frames drive a segment", async () => {
     const server = createServer({ apiKey: "dev-key" });

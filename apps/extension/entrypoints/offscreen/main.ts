@@ -54,6 +54,7 @@ async function startSession(message: StartSessionMessage): Promise<void> {
       tabTitle: tab.title,
       tabUrl: tab.url,
       targetLanguage: message.settings.targetLanguage,
+      sourceLanguage: message.settings.sourceLanguage,
       mode: message.settings.mode,
       audioFormat: CANONICAL_PCM_AUDIO_FORMAT,
       onEvent: (event) => {

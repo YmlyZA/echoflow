@@ -4,6 +4,7 @@ export interface ExtensionSettings {
   serverUrl: string;
   apiKey: string;
   targetLanguage: string;
+  sourceLanguage: string;
   subtitleFontSize: number;
   mode: SubtitleMode;
 }
@@ -27,6 +28,10 @@ export const DEFAULT_SUBTITLE_FONT_SIZE = 24;
 
 const DEFAULT_TARGET_LANGUAGE = "en";
 const DEFAULT_SUBTITLE_MODE: SubtitleMode = "pipeline";
+
+export function counterpartSource(target: string): string {
+  return target === "zh-CN" || target === "zh-TW" ? "en" : "zh";
+}
 
 export const SUBTITLE_MODE_OPTIONS = [
   { value: "pipeline" as const, label: "一致 (免费)" },
@@ -98,11 +103,14 @@ export function resolveSettings(
   storedSettings: StoredExtensionSettings | undefined,
   browserLanguage: string
 ): ExtensionSettings {
+  const targetLanguage =
+    storedSettings?.targetLanguage ?? getDefaultTargetLanguage(browserLanguage);
   return {
     serverUrl: storedSettings?.serverUrl ?? "",
     apiKey: storedSettings?.apiKey ?? "",
-    targetLanguage:
-      storedSettings?.targetLanguage ?? getDefaultTargetLanguage(browserLanguage),
+    targetLanguage,
+    sourceLanguage:
+      storedSettings?.sourceLanguage ?? counterpartSource(targetLanguage),
     subtitleFontSize:
       storedSettings?.subtitleFontSize ?? DEFAULT_SUBTITLE_FONT_SIZE,
     mode: storedSettings?.mode ?? DEFAULT_SUBTITLE_MODE
@@ -175,6 +183,7 @@ export async function saveSettings(
     serverUrl: settings.serverUrl.trim(),
     apiKey: settings.apiKey.trim(),
     targetLanguage: settings.targetLanguage.trim(),
+    sourceLanguage: settings.sourceLanguage.trim(),
     subtitleFontSize: settings.subtitleFontSize,
     mode: settings.mode
   });

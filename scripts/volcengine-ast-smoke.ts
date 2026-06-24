@@ -2,10 +2,11 @@
 //
 // Usage (from repo root):
 //   VOLCENGINE_AST_API_KEY=... \
-//   pnpm --filter @echoflow/backend exec tsx ../../scripts/volcengine-ast-smoke.ts path/to/audio.pcm [targetLang]
+//   pnpm --filter @echoflow/backend exec tsx ../../scripts/volcengine-ast-smoke.ts path/to/audio.pcm [targetLang] [sourceLang]
 //
 // The audio file must be raw 16 kHz / 16-bit / mono little-endian PCM (or a WAV
-// with that format — its 44-byte header is skipped). targetLang defaults to zh-CN.
+// with that format — its 44-byte header is skipped). targetLang defaults to zh-CN,
+// sourceLang defaults to en.
 //
 // This harness instruments the transport to print EVERY raw decoded AST event
 // (kind/text/final/timestamps) alongside the reconciled ServerEvents, so the 7
@@ -28,9 +29,10 @@ import { InterpretationSubtitleSource } from "../apps/backend/src/realtime/inter
 
 const audioPath = process.argv[2];
 const targetLanguage = process.argv[3] ?? "zh-CN";
+const sourceLanguage = process.argv[4] ?? "en";
 if (audioPath === undefined) {
   console.error(
-    "usage: tsx scripts/volcengine-ast-smoke.ts <audio.pcm|audio.wav> [targetLang]",
+    "usage: tsx scripts/volcengine-ast-smoke.ts <audio.pcm|audio.wav> [targetLang] [sourceLang]",
   );
   process.exit(1);
 }
@@ -72,6 +74,7 @@ const source = new InterpretationSubtitleSource(
       process.env.VOLCENGINE_AST_RESOURCE_ID ?? DEFAULT_VOLCENGINE_AST_RESOURCE_ID,
     endpoint: process.env.VOLCENGINE_AST_ENDPOINT ?? DEFAULT_VOLCENGINE_AST_ENDPOINT,
   },
+  sourceLanguage,
   targetLanguage,
   instrumentedConnect,
 );
