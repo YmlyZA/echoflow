@@ -1,25 +1,29 @@
 import { describe, expect, it } from "vitest";
-import {
-  INTERPRET_SUPPORTED_TARGETS,
-  isSupportedInterpretTarget,
-  toAstLanguageCode,
-} from "./astLanguages.js";
+import { AST_LANGUAGES, isSupportedAstPair, toAstLanguageCode } from "./astLanguages.js";
 
-describe("astLanguages", () => {
-  it("supports exactly zh-CN, zh-TW, en", () => {
-    expect([...INTERPRET_SUPPORTED_TARGETS].sort()).toEqual(["en", "zh-CN", "zh-TW"]);
+describe("AST_LANGUAGES", () => {
+  it("lists 20 languages with zh/en as the only pivots", () => {
+    expect(AST_LANGUAGES).toHaveLength(20);
+    const pivots = AST_LANGUAGES.filter((l) => l.pivot).map((l) => l.code).sort();
+    expect(pivots).toEqual(["en", "zh"]);
   });
+});
 
-  it("accepts supported targets and rejects others", () => {
-    expect(isSupportedInterpretTarget("zh-CN")).toBe(true);
-    expect(isSupportedInterpretTarget("en")).toBe(true);
-    expect(isSupportedInterpretTarget("ja")).toBe(false);
-    expect(isSupportedInterpretTarget("")).toBe(false);
-  });
-
-  it("maps our codes to AST codes", () => {
+describe("toAstLanguageCode", () => {
+  it("maps Chinese UI codes to zh and passes others through", () => {
     expect(toAstLanguageCode("zh-CN")).toBe("zh");
     expect(toAstLanguageCode("zh-TW")).toBe("zh");
     expect(toAstLanguageCode("en")).toBe("en");
+    expect(toAstLanguageCode("ja")).toBe("ja");
+  });
+});
+
+describe("isSupportedAstPair", () => {
+  it("enforces the pivot rule over AST codes", () => {
+    expect(isSupportedAstPair("en", "zh")).toBe(true);
+    expect(isSupportedAstPair("ja", "zh")).toBe(true);
+    expect(isSupportedAstPair("ja", "ko")).toBe(false);
+    expect(isSupportedAstPair("zh", "zh")).toBe(false);
+    expect(isSupportedAstPair("xx", "zh")).toBe(false); // unknown code
   });
 });
