@@ -71,33 +71,34 @@ A single pill, anchored to the panel, carries all connection status and the mode
 
 The overlay already receives `SERVER_EVENT`, `CONNECTION_STATUS`, and `SESSION_ERROR`. Two gaps:
 
-**Lifecycle (derived, no new data):** A new pure helper `apps/extension/src/overlay/overlayStatus.ts` maps the signals the content script already has into a single pill state:
+**Lifecycle (derived, no new data):** A new pure helper `apps/extension/src/overlay/overlayStatus.ts` maps the signals the content script already has into a single pill state. The overlay **defaults to `"connecting"` the moment it mounts** — the content script is injected at session start, so it is connecting until something arrives. No "connecting" message is sent (that would race the React mount).
 
 ```
 type OverlayLifecycle = "connecting" | "live" | "reconnecting" | "error";
 
 deriveOverlayStatus({
-  connectionStatus,   // "connecting" | "reconnecting" | "connected" | null
+  connectionStatus,   // "reconnecting" | "connected" | null  (from CONNECTION_STATUS)
   hasError,           // transientError != null || a SESSION_ERROR was received
-  hasSegment,         // a partial/final has been rendered
+  hasSignal,          // at least one SERVER_EVENT (language/partial/final) seen
 }): OverlayLifecycle
 ```
 
-Mapping rules:
+Mapping rules (first match wins):
 - `hasError` → `"error"` (highest priority).
 - `connectionStatus === "reconnecting"` → `"reconnecting"`.
-- `connectionStatus === "connecting"` and not yet any segment → `"connecting"`.
-- otherwise (`connected`, or first segment seen) → `"live"`.
+- `hasSignal || connectionStatus === "connected"` → `"live"`.
+- otherwise → `"connecting"`.
 
 This helper is pure and unit-tested, matching the project convention of extending a pure reducer/helper plus its test rather than adding ad-hoc state.
 
-**Mode (one new datum):** Carry the mode to the overlay on the existing connection-status channel.
+**Mode (one new datum):** Carry the mode on the `SERVER_EVENT` channel, which reliably arrives with the first `language`/`partial`. (`CONNECTION_STATUS` is *not* used for mode: `RealtimeClient.onStatus` only fires on reconnect events, never on the initial connect, so it never arrives in a normal session.) The "live" pill — the only state that shows the mode label — is entered exactly when the first `SERVER_EVENT` arrives, so mode is always known before it is displayed.
 
-- In `apps/extension/src/messaging/messages.ts`: add `mode: SubtitleMode` to `ConnectionStatusMessage`, and broaden its `status` union to `"connecting" | "reconnecting" | "connected"`.
-- In `apps/extension/entrypoints/background.ts`: after injecting the content script and starting the session, send an initial `CONNECTION_STATUS { status: "connecting", mode }` to the tab (mode read from `sessionState`). Stamp `mode` onto the existing `connected` / `reconnecting` forwards as well (so the overlay always knows the mode). The `sendMessageToTab` type already permits `CONNECTION_STATUS`.
+- In `apps/extension/src/messaging/messages.ts`: add `mode: SubtitleMode` to `ServerEventMessage` (`import type { ServerEvent, SubtitleMode } from "@echoflow/protocol"` — `SubtitleMode` is exported from the protocol package). `ConnectionStatusMessage` is unchanged.
+- In `apps/extension/src/session/sessionState.ts`: add `mode: SubtitleMode` to `ActiveSessionDetails`; the `START_CONNECTING` reducer branch sets it from `event.settings.mode` (alongside the existing `targetLanguage`).
+- In `apps/extension/entrypoints/background.ts`: `forwardServerEvent` stamps `mode: sessionState.mode` onto the `SERVER_EVENT` message it sends to the tab (it already reads `sessionState` for `tabId`/`targetLanguage` in that function).
 - This is an **internal extension messaging change only** — `packages/protocol` (the backend wire contract) is untouched. `isRuntimeMessage` validates by `type` only, so no per-field guard change is required; the type definitions are updated.
 
-The content script (`content.tsx`) tracks the lifecycle status and mode from these messages, derives the pill state via `deriveOverlayStatus`, and passes `lifecycle` + `mode` + the existing segment/error props to `SubtitleOverlay`. It also injects `themeStyleSheet(DARK_THEME, ":host")` into the shadow root once at mount.
+The content script (`content.tsx`) tracks `connectionStatus`, `hasSignal`, `hasError`, and `mode` from the messages it receives, derives the pill state via `deriveOverlayStatus`, and passes `lifecycle` + `mode` + the existing segment/error props to `SubtitleOverlay`. It also injects `themeStyleSheet(DARK_THEME, ":host")` into the shadow root once at mount.
 
 ### 5. File structure
 
@@ -105,8 +106,9 @@ The content script (`content.tsx`) tracks the lifecycle status and mode from the
 - **New** `apps/extension/src/overlay/overlayStatus.ts` — pure `deriveOverlayStatus` helper + the mode-label mapping.
 - **New** `apps/extension/src/overlay/overlayStatus.test.ts` — unit tests for all four lifecycle states and the mode-label mapping.
 - **Modify** `apps/extension/entrypoints/content.tsx` — track lifecycle + mode from messages, inject theme vars into the shadow root, derive and pass pill state.
-- **Modify** `apps/extension/src/messaging/messages.ts` — `mode` field + `"connecting"` status on `ConnectionStatusMessage`.
-- **Modify** `apps/extension/entrypoints/background.ts` — send initial connecting message; stamp mode on connection-status forwards.
+- **Modify** `apps/extension/src/messaging/messages.ts` — add `mode: SubtitleMode` to `ServerEventMessage`.
+- **Modify** `apps/extension/src/session/sessionState.ts` — add `mode` to `ActiveSessionDetails`; set it in the `START_CONNECTING` branch.
+- **Modify** `apps/extension/entrypoints/background.ts` — `forwardServerEvent` stamps `mode: sessionState.mode` onto the tab message.
 - **Modify** `apps/extension/src/overlay/SubtitleOverlay.test.tsx` — cover the four pill states, hover-reveal control presence, mode label, and error fold-in.
 
 ### 6. Testing
