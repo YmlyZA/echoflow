@@ -1,4 +1,5 @@
 import { isServerEvent } from "@echoflow/protocol";
+import type { SubtitleMode } from "@echoflow/protocol";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useReducer, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -7,6 +8,7 @@ import {
   type StopSessionMessage
 } from "../src/messaging/messages";
 import { SubtitleOverlay } from "../src/overlay/SubtitleOverlay";
+import { deriveOverlayStatus } from "../src/overlay/overlayStatus";
 import { DEFAULT_SUBTITLE_FONT_SIZE } from "../src/settings/settings";
 import {
   createInitialSubtitleState,
@@ -26,6 +28,8 @@ function EchoFlowMount() {
   const [connectionStatus, setConnectionStatus] = useState<
     "reconnecting" | "connected" | null
   >(null);
+  const [hasSignal, setHasSignal] = useState(false);
+  const [mode, setMode] = useState<SubtitleMode>("pipeline");
 
   useEffect(() => {
     function handleServerEvent(event: Event) {
@@ -50,6 +54,8 @@ function EchoFlowMount() {
       }
 
       if (message.type === "SERVER_EVENT") {
+        setHasSignal(true);
+        setMode(message.mode);
         window.dispatchEvent(
           new CustomEvent("echoflow:server-event", {
             detail: message.event
@@ -125,11 +131,18 @@ function EchoFlowMount() {
     window.addEventListener("pointerup", handlePointerUp);
   }
 
+  const lifecycle = deriveOverlayStatus({
+    connectionStatus,
+    hasError: subtitleState.transientError !== null,
+    hasSignal
+  });
+
   return (
     <SubtitleOverlay
       segment={subtitleState.currentSegment}
       transientError={subtitleState.transientError}
-      connectionStatus={connectionStatus}
+      lifecycle={lifecycle}
+      mode={mode}
       fontSize={fontSize}
       hidden={hidden}
       position={position ?? undefined}
