@@ -6,10 +6,6 @@ import {
   resolveSettings,
   saveSettings,
   validateSettings,
-  INTERPRET_TARGET_LANGUAGE_OPTIONS,
-  TARGET_LANGUAGE_OPTIONS,
-  targetOptionsForMode,
-  coerceTargetForMode,
 } from "./settings";
 
 describe("settings validation", () => {
@@ -18,6 +14,7 @@ describe("settings validation", () => {
       serverUrl: "",
       apiKey: "secret",
       targetLanguage: "en",
+      sourceLanguage: "zh",
       subtitleFontSize: 24,
       mode: "pipeline"
     });
@@ -31,6 +28,7 @@ describe("settings validation", () => {
       serverUrl: "https://api.example.com",
       apiKey: "",
       targetLanguage: "en",
+      sourceLanguage: "zh",
       subtitleFontSize: 24,
       mode: "pipeline"
     });
@@ -44,7 +42,8 @@ describe("target language defaults", () => {
   it("maps the browser language to a default target language", () => {
     expect(getDefaultTargetLanguage("en-US")).toBe("en");
     expect(getDefaultTargetLanguage("zh-Hans-CN")).toBe("zh-CN");
-    expect(getDefaultTargetLanguage("ja-JP")).toBe("ja");
+    expect(getDefaultTargetLanguage("zh-TW")).toBe("zh-TW");
+    expect(getDefaultTargetLanguage("ja-JP")).toBe("en"); // non-Chinese → en default; picker refines
   });
 
   it("keeps a manual target language instead of the browser default", () => {
@@ -113,24 +112,6 @@ describe("settings storage", () => {
 
   it("resolves mode to pipeline when unset", () => {
     expect(resolveSettings(undefined, "en-US").mode).toBe("pipeline");
-  });
-});
-
-describe("interpret target constraints", () => {
-  it("pipeline mode offers the full target list", () => {
-    expect(targetOptionsForMode("pipeline")).toEqual(TARGET_LANGUAGE_OPTIONS);
-  });
-  it("interpret mode offers only zh-CN, zh-TW, en", () => {
-    expect(targetOptionsForMode("interpret").map((o) => o.value).sort()).toEqual([
-      "en",
-      "zh-CN",
-      "zh-TW",
-    ]);
-  });
-  it("coerces an unsupported target to zh-CN for interpret, leaves it for pipeline", () => {
-    expect(coerceTargetForMode("interpret", "ja")).toBe("zh-CN");
-    expect(coerceTargetForMode("interpret", "en")).toBe("en");
-    expect(coerceTargetForMode("pipeline", "ja")).toBe("ja");
   });
 });
 

@@ -14,3 +14,6 @@ playwright-report/
 
 # Vendor AST protobuf package (schema captured in docs/superpowers/references/2026-06-20-ast-wire-reference.md)
 protobuf/
+.playwright-mcp/
+.superpowers/
+.claude/
