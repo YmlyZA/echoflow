@@ -2,18 +2,17 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { SubtitleOverlay } from "./SubtitleOverlay";
 
+const segment = {
+  segmentId: "s1",
+  sourceText: "hello world",
+  translatedText: "你好，世界",
+  status: "partial" as const
+};
+
 describe("SubtitleOverlay", () => {
-  it("renders source and translation lines", () => {
+  it("renders source and translation lines at the given font size", () => {
     const html = renderToStaticMarkup(
-      <SubtitleOverlay
-        segment={{
-          segmentId: "s1",
-          sourceText: "hello world",
-          translatedText: "你好，世界",
-          status: "partial"
-        }}
-        fontSize={28}
-      />
+      <SubtitleOverlay segment={segment} fontSize={28} lifecycle="live" mode="pipeline" />
     );
 
     expect(html).toContain("hello world");
@@ -21,17 +20,9 @@ describe("SubtitleOverlay", () => {
     expect(html).toContain("font-size:28px");
   });
 
-  it("renders compact controls for stop, hide, drag, and font size", () => {
+  it("renders icon controls with accessible labels", () => {
     const html = renderToStaticMarkup(
-      <SubtitleOverlay
-        segment={{
-          segmentId: "s1",
-          sourceText: "hello world",
-          translatedText: "你好，世界",
-          status: "partial"
-        }}
-        fontSize={24}
-      />
+      <SubtitleOverlay segment={segment} fontSize={24} lifecycle="live" mode="pipeline" />
     );
 
     expect(html).toContain('aria-label="Stop subtitles"');
@@ -41,44 +32,59 @@ describe("SubtitleOverlay", () => {
     expect(html).toContain('aria-label="Increase subtitle font size"');
   });
 
-  it("renders transient errors", () => {
+  it("shows the live pill with the interpret mode label", () => {
     const html = renderToStaticMarkup(
-      <SubtitleOverlay
-        segment={null}
-        fontSize={24}
-        transientError={{
-          code: "stt_unavailable",
-          message: "Speech recognition provider unavailable"
-        }}
-      />
+      <SubtitleOverlay segment={segment} fontSize={24} lifecycle="live" mode="interpret" />
     );
 
-    expect(html).toContain("Speech recognition provider unavailable");
+    expect(html).toContain("实时");
+    expect(html).toContain("LIVE");
   });
-});
 
-describe("SubtitleOverlay connection status", () => {
-  it("renders a reconnecting banner", () => {
+  it("shows the live pill with the pipeline mode label", () => {
     const html = renderToStaticMarkup(
-      <SubtitleOverlay
-        segment={null}
-        fontSize={24}
-        connectionStatus="reconnecting"
-      />
+      <SubtitleOverlay segment={segment} fontSize={24} lifecycle="live" mode="pipeline" />
+    );
+
+    expect(html).toContain("一致");
+  });
+
+  it("shows the connecting pill", () => {
+    const html = renderToStaticMarkup(
+      <SubtitleOverlay segment={null} fontSize={24} lifecycle="connecting" mode="pipeline" />
+    );
+
+    expect(html).toContain("连接中");
+  });
+
+  it("shows the reconnecting pill", () => {
+    const html = renderToStaticMarkup(
+      <SubtitleOverlay segment={segment} fontSize={24} lifecycle="reconnecting" mode="pipeline" />
     );
 
     expect(html).toContain("重连中");
   });
 
-  it("hides the banner when connected", () => {
+  it("folds the error message into the panel in the error state", () => {
     const html = renderToStaticMarkup(
       <SubtitleOverlay
         segment={null}
         fontSize={24}
-        connectionStatus="connected"
+        lifecycle="error"
+        mode="pipeline"
+        transientError={{ code: "stt_unavailable", message: "Speech recognition provider unavailable" }}
       />
     );
 
-    expect(html).not.toContain("重连中");
+    expect(html).toContain("连接错误");
+    expect(html).toContain("Speech recognition provider unavailable");
+  });
+
+  it("renders the restore control when hidden", () => {
+    const html = renderToStaticMarkup(
+      <SubtitleOverlay segment={segment} fontSize={24} lifecycle="live" mode="pipeline" hidden />
+    );
+
+    expect(html).toContain('aria-label="Show subtitles"');
   });
 });
