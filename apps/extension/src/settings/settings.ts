@@ -41,40 +41,11 @@ export const SUBTITLE_MODE_OPTIONS = [
 const MIN_SUBTITLE_FONT_SIZE = 12;
 const MAX_SUBTITLE_FONT_SIZE = 48;
 
-export const TARGET_LANGUAGE_OPTIONS = [
-  { value: "en", label: "English" },
-  { value: "zh-CN", label: "Chinese (Simplified)" },
-  { value: "zh-TW", label: "Chinese (Traditional)" },
-  { value: "ja", label: "Japanese" },
-  { value: "ko", label: "Korean" },
-  { value: "es", label: "Spanish" },
-  { value: "fr", label: "French" },
-  { value: "de", label: "German" }
-] as const;
-
-export const INTERPRET_TARGET_LANGUAGE_OPTIONS = TARGET_LANGUAGE_OPTIONS.filter(
-  (option) => option.value === "zh-CN" || option.value === "zh-TW" || option.value === "en"
-);
-
-export function targetOptionsForMode(
-  mode: SubtitleMode
-): readonly { value: string; label: string }[] {
-  return mode === "interpret"
-    ? INTERPRET_TARGET_LANGUAGE_OPTIONS
-    : TARGET_LANGUAGE_OPTIONS;
-}
-
-export function coerceTargetForMode(mode: SubtitleMode, target: string): string {
-  if (mode !== "interpret") {
-    return target;
-  }
-  return INTERPRET_TARGET_LANGUAGE_OPTIONS.some((option) => option.value === target)
-    ? target
-    : "zh-CN";
-}
-
 export type StoredExtensionSettings = Partial<ExtensionSettings>;
 
+// Best-effort default target for a fresh install, before backend capabilities
+// are known. The capability-driven picker (and coercePair) refine it once the
+// descriptor loads; the persisted value is just a sensible starting point.
 export function getDefaultTargetLanguage(browserLanguage: string): string {
   const normalized = browserLanguage.trim().toLowerCase();
 
@@ -91,12 +62,7 @@ export function getDefaultTargetLanguage(browserLanguage: string): string {
     return "zh-CN";
   }
 
-  const primaryLanguage = normalized.split("-")[0];
-  const supportedLanguage = TARGET_LANGUAGE_OPTIONS.find(
-    (option) => option.value.toLowerCase() === primaryLanguage
-  );
-
-  return supportedLanguage?.value ?? DEFAULT_TARGET_LANGUAGE;
+  return DEFAULT_TARGET_LANGUAGE;
 }
 
 export function resolveSettings(
