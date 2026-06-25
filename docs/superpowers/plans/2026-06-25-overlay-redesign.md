@@ -913,6 +913,105 @@ git commit -m "chore(extension): overlay redesign build verification"
 
 ---
 
+### Task 6: Surface client-side `SESSION_ERROR` in the error pill
+
+The final whole-branch review found that `content.tsx` receives the `SESSION_ERROR` runtime message (forwarded from the background at `background.ts:264`) but only calls `setConnectionStatus(null)` — it never drives `hasError`, so client-side failures (wrong API key, backend down at start; `connection_lost` mid-session) never show as the error pill. Spec §4 defines `hasError = transientError != null || a SESSION_ERROR was received`, and §7 calls out the "error with no prior subtitles (auth failure at start)" case. Close that gap.
+
+**Files:**
+- Modify: `apps/extension/entrypoints/content.tsx`
+
+**Interfaces:**
+- Consumes: `TransientSubtitleError` from `../src/subtitles/reducer` (already the type behind `subtitleState.transientError`); `deriveOverlayStatus` (Task 2); the `SubtitleOverlay` `transientError` prop (Task 3 renders it inline when `lifecycle === "error"`).
+- Produces: nothing for later tasks (final fix).
+
+This is an entrypoint change; per project convention (`CLAUDE.md`: the extension `test` script targets `src` only — entrypoints are covered by e2e) its gate is a clean `pnpm typecheck` plus the existing suite staying green. No new unit test.
+
+- [ ] **Step 1: Import the error type**
+
+In `apps/extension/entrypoints/content.tsx`, extend the existing import from `../src/subtitles/reducer` to add the type:
+
+```tsx
+import {
+  createInitialSubtitleState,
+  reduceSubtitleEvent,
+  type TransientSubtitleError
+} from "../src/subtitles/reducer";
+```
+
+- [ ] **Step 2: Add session-error state**
+
+Immediately after the `mode` state added in Task 4 (near the other `useState` declarations), add:
+
+```tsx
+  const [sessionError, setSessionError] = useState<TransientSubtitleError | null>(
+    null
+  );
+```
+
+- [ ] **Step 3: Set the error in the `SESSION_ERROR` branch; clear it on a fresh signal**
+
+In the `SERVER_EVENT` branch, where Task 4 added `setHasSignal(true)` / `setMode(message.mode)`, also clear any stale session error (a fresh event means we're live again):
+
+```tsx
+      if (message.type === "SERVER_EVENT") {
+        setHasSignal(true);
+        setMode(message.mode);
+        setSessionError(null);
+        window.dispatchEvent(
+          new CustomEvent("echoflow:server-event", {
+            detail: message.event
+          })
+        );
+        return;
+      }
+```
+
+In the `SESSION_ERROR` branch, record the error (keep the existing `setConnectionStatus(null)`):
+
+```tsx
+      if (message.type === "SESSION_ERROR") {
+        setConnectionStatus(null);
+        setSessionError({ code: message.code, message: message.message });
+      }
+```
+
+- [ ] **Step 4: Feed the error into `hasError` and into the overlay's message**
+
+Update the `lifecycle` derivation to OR in the session error:
+
+```tsx
+  const lifecycle = deriveOverlayStatus({
+    connectionStatus,
+    hasError: subtitleState.transientError !== null || sessionError !== null,
+    hasSignal
+  });
+```
+
+And update the `<SubtitleOverlay ... />` `transientError` prop so the message renders inline (the reducer error wins when both exist):
+
+```tsx
+      transientError={subtitleState.transientError ?? sessionError}
+```
+
+- [ ] **Step 5: Typecheck the workspace**
+
+Run: `pnpm typecheck`
+Expected: PASS — confirms the new state, the `TransientSubtitleError` import, and the `transientError` prop union all typecheck.
+
+- [ ] **Step 6: Run the full extension test suite**
+
+Run: `pnpm --filter @echoflow/extension test`
+Expected: PASS — no regressions (the existing component test already covers the error pill rendering given `lifecycle="error"` + a `transientError`).
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add apps/extension/entrypoints/content.tsx
+git commit -m "fix(extension): surface client-side SESSION_ERROR in the overlay error pill"
+```
+
+---
+
 ## Self-Review
 
 **Spec coverage:**
