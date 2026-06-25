@@ -3,6 +3,7 @@ import {
   type ExtensionSettings,
   type SettingsValidationErrors
 } from "../settings/settings";
+import type { SubtitleMode } from "@echoflow/protocol";
 
 export type SessionStatus =
   | "idle"
@@ -21,6 +22,7 @@ export interface ActiveSessionDetails {
   tabId: number;
   streamId: string;
   targetLanguage: string;
+  mode: SubtitleMode;
   remoteSessionId?: string;
 }
 
@@ -47,7 +49,7 @@ export type SessionStateEvent =
   | ({
       type: "START_CONNECTING";
       settings: ExtensionSettings;
-    } & Omit<ActiveSessionDetails, "targetLanguage" | "remoteSessionId">)
+    } & Omit<ActiveSessionDetails, "targetLanguage" | "mode" | "remoteSessionId">)
   | {
       type: "STREAM_READY";
       streamId: string;
@@ -91,7 +93,8 @@ export function reduceSessionState(
         localSessionId: event.localSessionId,
         tabId: event.tabId,
         streamId: event.streamId,
-        targetLanguage: event.settings.targetLanguage
+        targetLanguage: event.settings.targetLanguage,
+        mode: event.settings.mode
       };
     }
     case "STREAM_READY":

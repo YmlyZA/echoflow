@@ -1,4 +1,4 @@
-import type { ServerEvent } from "@echoflow/protocol";
+import type { ServerEvent, SubtitleMode } from "@echoflow/protocol";
 import type { ExtensionSettings } from "../settings/settings";
 
 export type RuntimeMessage =
@@ -40,6 +40,7 @@ export interface SessionErrorMessage {
 export interface ServerEventMessage {
   type: "SERVER_EVENT";
   localSessionId: string;
+  mode: SubtitleMode;
   event: ServerEvent;
 }
 

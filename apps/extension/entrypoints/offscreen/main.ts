@@ -61,6 +61,7 @@ async function startSession(message: StartSessionMessage): Promise<void> {
         void chrome.runtime.sendMessage({
           type: "SERVER_EVENT",
           localSessionId: message.localSessionId,
+          mode: message.settings.mode,
           event
         } satisfies ServerEventMessage);
       },
