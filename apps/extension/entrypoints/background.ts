@@ -296,6 +296,7 @@ async function forwardServerEvent(message: ServerEventMessage): Promise<void> {
   await sendMessageToTab(sessionState.tabId, {
     type: "SERVER_EVENT",
     localSessionId: message.localSessionId,
+    mode: sessionState.mode,
     event: message.event
   });
 }

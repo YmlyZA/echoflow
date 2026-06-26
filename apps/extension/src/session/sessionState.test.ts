@@ -102,6 +102,28 @@ describe("session state", () => {
       apiKey: "API key is required"
     });
   });
+
+  it("records the subtitle mode from settings on START_CONNECTING", () => {
+    const next = reduceSessionState(createInitialSessionState(), {
+      type: "START_CONNECTING",
+      localSessionId: "local-1",
+      tabId: 7,
+      streamId: "",
+      settings: {
+        serverUrl: "http://127.0.0.1:8787",
+        apiKey: "k",
+        targetLanguage: "zh-CN",
+        sourceLanguage: "en",
+        subtitleFontSize: 24,
+        mode: "interpret"
+      }
+    });
+
+    expect(next.status).toBe("connecting");
+    if (next.status === "connecting") {
+      expect(next.mode).toBe("interpret");
+    }
+  });
 });
 
 function connectingState(): SessionState {
@@ -110,7 +132,8 @@ function connectingState(): SessionState {
     localSessionId: "local-1",
     tabId: 7,
     streamId: "stream-1",
-    targetLanguage: "zh-CN"
+    targetLanguage: "zh-CN",
+    mode: "pipeline"
   };
 }
 
@@ -119,6 +142,8 @@ function validSettings() {
     serverUrl: "https://api.example.com",
     apiKey: "secret",
     targetLanguage: "zh-CN",
-    subtitleFontSize: 24
+    sourceLanguage: "en",
+    subtitleFontSize: 24,
+    mode: "pipeline" as const
   };
 }
