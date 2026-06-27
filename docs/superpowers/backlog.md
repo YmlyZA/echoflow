@@ -6,9 +6,9 @@ Captured 2026-06-24. Directions agreed but deferred while we focus on the UX ove
 
 Raising the extension to a real-product bar. Each slice = its own spec → plan → build.
 
-1. **Options redesign + capability-driven language selection** — *designing now* → `specs/2026-06-24-options-redesign-language-capabilities-design.md`. Establishes the Direction-B design language (teal "Focus Studio", light options / dark overlay) and ships explicit source/target language selection.
-2. **Overlay redesign** — in-page subtitles + controls, on the dark theme; must stay legible over any video.
-3. **Popup** (new surface) — status + quick controls (today the toolbar only toggles).
+1. ✅ **Options redesign + capability-driven language selection** — *shipped* (PRs #5–7) → `specs/2026-06-24-options-redesign-language-capabilities-design.md`. Established the Direction-B design language (teal "Focus Studio", light options / dark overlay) and explicit source/target language selection.
+2. ✅ **Overlay redesign** — *shipped* (PR #9) → `specs/2026-06-25-overlay-redesign-design.md`. On-brand panel wired to `DARK_THEME` tokens, hover-reveal icon controls, single status pill (connection lifecycle + live mode 一致/实时), client-side `SESSION_ERROR` surfaced inline.
+3. **Popup** (new surface) — *designing now*. Status + quick controls (today the toolbar only toggles).
 4. **Onboarding / first-run** — guided setup (server URL, API key, mode); the backend+creds step is the hardest for new users.
 5. **Store-readiness** — icon, screenshots, listing copy, accessibility audit.
 
