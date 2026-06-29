@@ -495,7 +495,7 @@ A props-driven control-center component in `src/popup/` (no chrome APIs), unit-t
 **Interfaces:**
 - Consumes: `SegmentedControl` from `../ui/SegmentedControl`; `LanguagePicker` from `../ui/LanguagePicker`; `SUBTITLE_MODE_OPTIONS` from `../settings/settings`; `PopupPill`, `formatElapsed` (Task 2); `StartReason` (Task 2); `LanguageOption` from `@echoflow/protocol`; `HistorySessionRecord` from `../history/historyStore`; `SubtitleMode` from `@echoflow/protocol`; `LIGHT_THEME`, `themeStyleSheet`, `RADIUS` from `../ui/theme`.
 - Produces:
-  - `interface PopupView { pill: PopupPill; status: SessionState["status"]; running: boolean; tabTitle: string | null; elapsedMs: number | null; mode: SubtitleMode; sourceLanguage: string; targetLanguage: string; sourceOptions: LanguageOption[]; targetOptions: LanguageOption[]; recent: HistorySessionRecord[]; startReason: StartReason; errorMessage: string | null }`
+  - `interface PopupView { pill: PopupPill; status: SessionState["status"]; running: boolean; tabTitle: string | null; elapsedMs: number | null; mode: SubtitleMode; sourceLanguage: string; targetLanguage: string; targetOptions: LanguageOption[]; recent: HistorySessionRecord[]; startReason: StartReason; errorMessage: string | null }` (the popup renders only a target picker; source is shown as text, so there is no `sourceOptions`)
   - `interface PopupHandlers { onStart(): void; onStop(): void; onModeChange(mode: SubtitleMode): void; onTargetChange(code: string): void; onOpenOptions(): void }`
   - `PopupApp(props: { view: PopupView; handlers: PopupHandlers })` — the default export.
 
@@ -855,7 +855,7 @@ The thin entrypoint that mounts `PopupApp`: reads state from `sessionStore` + `c
 - Modify: `apps/extension/wxt.config.ts` (add `action.default_popup`)
 
 **Interfaces:**
-- Consumes: `PopupApp`, `PopupView`, `PopupHandlers` (Task 4); `popupPill` (Task 2); `recentSessions` (Task 2); `evaluateStartGate` (Task 2); `StartFromPopupMessage`, `StopSessionMessage` (Tasks 1 + existing); `loadSettings`/`saveSettings`/`validateSettings`/`counterpartSource` (settings); `fetchCapabilities` (capabilitiesClient); `coercePair`/`sourceOptions`/`targetOptions` (languageSelection); `loadPersistedState`/`SESSION_STATE_STORAGE_KEY` (sessionStore); `createHistoryStore` (historyStore).
+- Consumes: `PopupApp`, `PopupView`, `PopupHandlers` (Task 4); `popupPill` (Task 2); `recentSessions` (Task 2); `evaluateStartGate` (Task 2); `StartFromPopupMessage`, `StopSessionMessage` (Tasks 1 + existing); `loadSettings`/`saveSettings`/`validateSettings`/`counterpartSource` (settings); `fetchCapabilities` (capabilitiesClient); `coercePair`/`targetOptions` (languageSelection); `loadPersistedState`/`SESSION_STATE_STORAGE_KEY` (sessionStore); `createHistoryStore` (historyStore).
 - Produces: nothing for later tasks.
 
 This is entrypoint/e2e territory; its gate is a clean `pnpm typecheck`, the existing suite green, and a successful `build` (Task 6). Follow the existing `entrypoints/options/main.tsx` patterns for the capabilities fetch and `coercePair` usage.
