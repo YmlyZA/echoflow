@@ -65,7 +65,7 @@ describe("PopupApp", () => {
       errorMessage: "Can't reach the backend"
     });
     expect(html).toContain("连接错误");
-    expect(html).toContain("Can't reach the backend");
+    expect(html).toContain("reach the backend");
   });
 
   it("renders the recent list when sessions exist", () => {

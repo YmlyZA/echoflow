@@ -90,8 +90,7 @@ export function PopupApp({
           )}
 
           {view.errorMessage ? (
-            // eslint-disable-next-line react/no-danger
-            <p className="ef-error" role="status" dangerouslySetInnerHTML={{ __html: view.errorMessage }} />
+            <p className="ef-error" role="status">{view.errorMessage}</p>
           ) : null}
 
           <div className="ef-field">
