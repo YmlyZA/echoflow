@@ -5,12 +5,13 @@ import {
   type SessionErrorMessage,
   type SessionStartedMessage,
   type ServerEventMessage,
+  type StartFromPopupMessage,
   type StartSessionMessage,
   type StopSessionMessage
 } from "../src/messaging/messages";
 import { createHistoryStore } from "../src/history/historyStore";
 import { finalEventToSegment } from "../src/history/segmentMapping";
-import { loadSettings, validateSettings } from "../src/settings/settings";
+import { validateSettings } from "../src/settings/settings";
 import {
   createInitialSessionState,
   reduceSessionState,
@@ -25,11 +26,6 @@ const historyStore = createHistoryStore();
 let sessionState: SessionState = createInitialSessionState();
 let detectedSourceLanguage = "unknown";
 let stateLoaded: Promise<void> | undefined;
-// A toolbar click that lands while the previous session is still tearing down
-// (status "stopping") is queued here and started once the stop completes,
-// rather than being silently dropped. Lets a quick stop→start (e.g. right after
-// changing the subtitle mode) take effect in a single off/on toggle.
-let pendingStartTab: chrome.tabs.Tab | undefined;
 
 function ensureStateLoaded(): Promise<void> {
   stateLoaded ??= loadPersistedState().then((persisted) => {
@@ -54,10 +50,6 @@ export default defineBackground(() => {
     chrome.action.setTitle({ title: "EchoFlow" });
   });
 
-  chrome.action.onClicked.addListener((tab) => {
-    void handleActionClick(tab);
-  });
-
   chrome.runtime.onMessage.addListener((message: unknown) => {
     if (!isRuntimeMessage(message)) {
       return;
@@ -67,53 +59,19 @@ export default defineBackground(() => {
   });
 });
 
-async function handleActionClick(tab: chrome.tabs.Tab): Promise<void> {
-  await ensureStateLoaded();
-
-  if (sessionState.status === "connecting" || sessionState.status === "running") {
-    await stopSession("action_click");
-    // A click may have arrived during the teardown; honor it now that we're idle.
-    await drainPendingStart();
-    return;
-  }
-
-  if (sessionState.status === "stopping") {
-    // A stop is already in flight; queue this toggle instead of dropping it.
-    pendingStartTab = tab;
-    return;
-  }
-
-  await startSession(tab);
-}
-
-async function drainPendingStart(): Promise<void> {
-  const tab = pendingStartTab;
-  pendingStartTab = undefined;
-  if (tab !== undefined && sessionState.status === "idle") {
-    await startSession(tab);
-  }
-}
-
-async function startSession(tab: chrome.tabs.Tab): Promise<void> {
-  // Any actual start consumes the queue, so a start cannot fire spuriously later.
-  pendingStartTab = undefined;
-
-  if (typeof tab.id !== "number") {
-    return;
-  }
-
-  const settings = await loadSettings();
+async function startSession(message: StartFromPopupMessage): Promise<void> {
+  const { tabId, streamId, settings } = message;
   const validation = validateSettings(settings);
 
   if (!validation.valid) {
-    await chrome.runtime.openOptionsPage();
+    // The popup gates Start on validity; this is a defensive no-op.
     return;
   }
 
   let localSessionId: string | undefined;
 
   try {
-    await injectRuntimeContentScript(tab.id);
+    await injectRuntimeContentScript(tabId);
 
     const localSession = await historyStore.createLocalSession({
       targetLanguage: settings.targetLanguage
@@ -125,17 +83,13 @@ async function startSession(tab: chrome.tabs.Tab): Promise<void> {
       reduceSessionState(sessionState, {
         type: "START_CONNECTING",
         localSessionId: localSession.id,
-        tabId: tab.id,
-        streamId: "",
+        tabId,
+        streamId,
         settings
       })
     );
 
     await ensureOffscreenDocument();
-
-    const streamId = await chrome.tabCapture.getMediaStreamId({
-      targetTabId: tab.id
-    });
 
     await commitSessionState(
       reduceSessionState(sessionState, {
@@ -149,7 +103,7 @@ async function startSession(tab: chrome.tabs.Tab): Promise<void> {
     await chrome.runtime.sendMessage({
       type: "START_SESSION",
       localSessionId,
-      tabId: tab.id,
+      tabId,
       streamId,
       settings
     } satisfies StartSessionMessage);
@@ -195,6 +149,9 @@ async function handleRuntimeMessage(message: RuntimeMessage): Promise<void> {
   await ensureStateLoaded();
 
   switch (message.type) {
+    case "START_FROM_POPUP":
+      await startSession(message);
+      return;
     case "STOP_SESSION":
       await stopSession(message.reason ?? "content_request");
       return;

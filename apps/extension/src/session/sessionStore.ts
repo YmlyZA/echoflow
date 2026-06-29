@@ -27,8 +27,9 @@ export async function loadPersistedState(
   }
 
   // A persisted "stopping" means the worker was killed mid-stop and the
-  // STOP_COMPLETED transition never ran. Recover to idle, otherwise the action
-  // button is permanently deadlocked (handleActionClick early-returns on it).
+  // STOP_COMPLETED transition never ran. Recover to idle; otherwise a persisted
+  // "stopping" would leave the session wedged, since nothing would drive it back
+  // to idle on the next service-worker wake.
   if (stored.sessionState.status === "stopping") {
     return { ...stored, sessionState: createInitialSessionState() };
   }

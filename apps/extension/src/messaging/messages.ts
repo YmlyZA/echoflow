@@ -3,6 +3,7 @@ import type { ExtensionSettings } from "../settings/settings";
 
 export type RuntimeMessage =
   | StartSessionMessage
+  | StartFromPopupMessage
   | StopSessionMessage
   | SessionStartedMessage
   | SessionErrorMessage
@@ -13,6 +14,13 @@ export type RuntimeMessage =
 export interface StartSessionMessage {
   type: "START_SESSION";
   localSessionId: string;
+  tabId: number;
+  streamId: string;
+  settings: ExtensionSettings;
+}
+
+export interface StartFromPopupMessage {
+  type: "START_FROM_POPUP";
   tabId: number;
   streamId: string;
   settings: ExtensionSettings;
@@ -61,6 +69,7 @@ export function isRuntimeMessage(message: unknown): message is RuntimeMessage {
 
   return [
     "START_SESSION",
+    "START_FROM_POPUP",
     "STOP_SESSION",
     "SESSION_STARTED",
     "SESSION_ERROR",
