@@ -77,7 +77,7 @@ The user gesture for `chrome.tabCapture.getMediaStreamId` must originate in the 
 
 `action.onClicked`, `handleActionClick`, `pendingStartTab`, and `drainPendingStart` are removed from the background. The content-script injection, offscreen lifecycle, `RealtimeSession`, and `sessionState` reducer are unchanged. The badge logic (`setBadge`) remains, now driven by the same lifecycle transitions.
 
-A background message handler answers the popup's state query: a new `GET_SESSION_STATE` request returns the current `sessionState` (status + active details), and the existing lifecycle transitions broadcast updates the popup listens for while open.
+The popup reads session state from the **existing persisted store** rather than a new request/response message: the background already persists `sessionState` to `chrome.storage.session` via `persistState`/`loadPersistedState` (`apps/extension/src/session/sessionStore.ts`, key `echoflow.session`). On open the popup calls `loadPersistedState()`; while open it subscribes to `chrome.storage.onChanged` (session area, that key) to reflect live lifecycle transitions, unsubscribing on unmount. No `GET_SESSION_STATE` request or broadcast message is needed — the only new runtime message is `START_FROM_POPUP`; Stop reuses the existing `STOP_SESSION`.
 
 ### 5. Components
 
@@ -90,7 +90,7 @@ New under `apps/extension/src/popup/`:
 - `recentSessions.ts` (+ test) — pure selector that takes the history store's sessions and returns the last N for the recent list.
 - `canStart.ts` (+ test) — pure settings-gate: given settings validation, returns whether Start is enabled and the reason if not (drives the "Finish setup in Options" state).
 
-New messaging (`apps/extension/src/messaging/messages.ts`): `StartFromPopupMessage { type: "START_FROM_POPUP"; tabId; streamId; settings }` and `GetSessionStateMessage` / its response shape. The `isRuntimeMessage` guard's type list is extended accordingly. No `packages/protocol` change.
+New messaging (`apps/extension/src/messaging/messages.ts`): `StartFromPopupMessage { type: "START_FROM_POPUP"; tabId; streamId; settings }` only. The `isRuntimeMessage` guard's type list is extended accordingly. Session state reaches the popup via the existing `sessionStore` + `chrome.storage.onChanged` (see §4), not a new message. No `packages/protocol` change.
 
 `wxt.config.ts`: add `action.default_popup` pointing at the popup entrypoint.
 
