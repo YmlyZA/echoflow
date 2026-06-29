@@ -8,8 +8,8 @@ Raising the extension to a real-product bar. Each slice = its own spec → plan 
 
 1. ✅ **Options redesign + capability-driven language selection** — *shipped* (PRs #5–7) → `specs/2026-06-24-options-redesign-language-capabilities-design.md`. Established the Direction-B design language (teal "Focus Studio", light options / dark overlay) and explicit source/target language selection.
 2. ✅ **Overlay redesign** — *shipped* (PR #9) → `specs/2026-06-25-overlay-redesign-design.md`. On-brand panel wired to `DARK_THEME` tokens, hover-reveal icon controls, single status pill (connection lifecycle + live mode 一致/实时), client-side `SESSION_ERROR` surfaced inline.
-3. **Popup** (new surface) — *designing now*. Status + quick controls (today the toolbar only toggles).
-4. **Onboarding / first-run** — guided setup (server URL, API key, mode); the backend+creds step is the hardest for new users.
+3. ✅ **Popup** (new surface) — *shipped* (PR #10) → `specs/2026-06-27-popup-control-center-design.md`. Toolbar icon opens a light-theme control center: start/stop (capture gesture moved into the popup), status pill + live card, quick mode/language controls, recent-history peek, Open-Options link. Bare mode labels (`一致/实时`).
+4. **Onboarding / first-run** — *designing now*. Guided setup (server URL, API key, mode); the backend+creds step is the hardest for new users.
 5. **Store-readiness** — icon, screenshots, listing copy, accessibility audit.
 
 ## B — Productionization / engineering baseline
@@ -26,7 +26,7 @@ Raising the extension to a real-product bar. Each slice = its own spec → plan 
 
 ## D — Quality / observability
 
-- **Automated e2e** — bring interpret/pipeline validation into CI (Playwright + synthetic audio). Blocker: `tabCapture` needs a real user gesture; needs a workaround.
+- **Automated e2e** — bring interpret/pipeline validation into CI (Playwright + synthetic audio). Blocker: `tabCapture` needs a real user gesture; needs a workaround. As of Slice 3 the `extension-smoke` Playwright test is retargeted to the popup's `START_FROM_POPUP` path but `test.skip`'d — the popup Start gesture (and the SW→backend WS bridge) can't be synthesized headlessly. Un-skip once the gesture/connectivity workaround lands.
 - **Backend↔Volcengine auto-reconnect** — neither pipeline nor interpret reconnects on a mid-session drop (deferred since Cycle 1).
 - **Drain trailing final on stop** — stopping mid-utterance drops the in-progress final (known deferred edge).
 - Parked Cycle-2 minors: interpret in-flight-after-`end()` and double-`close()` are untested.
