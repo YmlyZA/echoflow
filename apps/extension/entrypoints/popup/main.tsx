@@ -90,8 +90,13 @@ function PopupRoot() {
     [settings, capabilities]
   );
 
+  // Include "stopping" so the primary action shows Stop (not an enabled Start)
+  // while teardown is in flight — clicking Start mid-stop would fire
+  // START_FROM_POPUP against an offscreen pipeline that is still tearing down.
   const running =
-    sessionState.status === "running" || sessionState.status === "connecting";
+    sessionState.status === "running" ||
+    sessionState.status === "connecting" ||
+    sessionState.status === "stopping";
 
   const persist = useCallback(async (next: ExtensionSettings) => {
     setSettings(next);
