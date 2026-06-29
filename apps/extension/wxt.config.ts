@@ -10,7 +10,8 @@ export default defineConfig({
     permissions: ["activeTab", "storage", "tabCapture", "offscreen", "scripting"],
     host_permissions: ["http://127.0.0.1/*", "http://localhost/*"],
     action: {
-      default_title: "EchoFlow"
+      default_title: "EchoFlow",
+      default_popup: "popup.html"
     }
   }
 });
