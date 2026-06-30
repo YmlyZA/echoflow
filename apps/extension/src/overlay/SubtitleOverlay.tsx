@@ -327,6 +327,10 @@ function SubtitleOverlayStyles() {
           padding: 10px 10px 8px;
         }
       }
+
+      @media (prefers-reduced-motion: reduce) {
+        * { transition: none !important; animation: none !important; }
+      }
     `}</style>
   );
 }

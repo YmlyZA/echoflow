@@ -271,6 +271,10 @@ function OnboardingStyles() {
       .ef-btn.ef-primary:disabled { opacity: .45; cursor: not-allowed; }
       .ef-btn.ef-ghost { border: none; background: transparent; color: var(--ef-text-muted); font-weight: 600; font-size: 12px; }
       .ef-btn:focus-visible, .ef-link:focus-visible { outline: 2px solid var(--ef-accent); outline-offset: 2px; }
+
+      @media (prefers-reduced-motion: reduce) {
+        * { transition: none !important; animation: none !important; }
+      }
     `}</style>
   );
 }
