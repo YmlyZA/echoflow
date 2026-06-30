@@ -9,13 +9,13 @@ export type ThemeTokens = {
 };
 
 export const LIGHT_THEME: ThemeTokens = {
-  accent: "#0d8a7a",
+  accent: "#0c8273",
   accentWeak: "#e7f7f4",
   bg: "#f6f7f8",
   surface: "#ffffff",
   border: "#e3e6ea",
   text: "#14181c",
-  textMuted: "#6b7280",
+  textMuted: "#677077",
 };
 
 export const DARK_THEME: ThemeTokens = {
