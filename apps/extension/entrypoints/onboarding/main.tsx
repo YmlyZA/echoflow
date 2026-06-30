@@ -2,8 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type {
   CapabilitiesDescriptor,
-  ModeCapabilities,
-  SubtitleMode
+  ModeCapabilities
 } from "@echoflow/protocol";
 import {
   OnboardingApp,
