@@ -228,6 +228,10 @@ function PopupStyles() {
 
       .ef-start:focus-visible, .ef-stop:focus-visible, .ef-setup:focus-visible,
       .ef-optlink:focus-visible { outline: 2px solid var(--ef-accent); outline-offset: 2px; }
+
+      @media (prefers-reduced-motion: reduce) {
+        * { transition: none !important; animation: none !important; }
+      }
     `}</style>
   );
 }

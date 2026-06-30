@@ -232,7 +232,7 @@ function OnboardingStyles() {
       .ef-onb-body { padding: 20px 24px; }
       .ef-step { display: grid; gap: 13px; }
       .ef-hero { width: 46px; height: 46px; border-radius: 12px; background: linear-gradient(135deg, var(--ef-accent), #3bb6a4); }
-      .ef-hero-done { background: linear-gradient(135deg, #0d8a7a, #27c2a8); }
+      .ef-hero-done { background: linear-gradient(135deg, var(--ef-accent), #27c2a8); }
       .ef-step-ttl { font-size: 19px; font-weight: 800; margin: 0; line-height: 1.3; }
       .ef-step-desc { font-size: 13px; color: var(--ef-text-muted); margin: 0; line-height: 1.5; }
       .ef-check { margin: 2px 0 0; padding-left: 18px; display: grid; gap: 8px; font-size: 12.5px; line-height: 1.45; color: var(--ef-text-muted); }
@@ -248,7 +248,7 @@ function OnboardingStyles() {
       .ef-test-err { background: #fbece9; border-color: #e7b3aa; color: #c4503f; }
       .ef-test-ic { flex: none; width: 18px; height: 18px; border-radius: 50%; color: #fff; font-size: 12px; font-weight: 800;
         display: flex; align-items: center; justify-content: center; }
-      .ef-test-ok .ef-test-ic { background: #0d8a7a; }
+      .ef-test-ok .ef-test-ic { background: var(--ef-accent); }
       .ef-test-err .ef-test-ic { background: #c4503f; }
       .ef-note { font-size: 11.5px; color: var(--ef-text-muted); background: var(--ef-surface);
         border: 1px dashed var(--ef-border); border-radius: ${RADIUS.sm}; padding: 9px 11px; margin: 0; line-height: 1.45; }
@@ -259,7 +259,7 @@ function OnboardingStyles() {
       .ef-rr:last-child { border-bottom: none; }
       .ef-k { color: var(--ef-text-muted); }
       .ef-v { font-weight: 700; display: flex; align-items: center; gap: 6px; }
-      .ef-dot { width: 7px; height: 7px; border-radius: 50%; background: #0d8a7a; box-shadow: 0 0 6px #0d8a7a; }
+      .ef-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ef-accent); box-shadow: 0 0 6px var(--ef-accent); }
       .ef-howto { background: var(--ef-accent-weak); border: 1px solid #bfe7df; border-radius: ${RADIUS.md};
         padding: 12px 13px; font-size: 12.5px; color: #0a6e60; line-height: 1.45; }
       .ef-onb-foot { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px;
@@ -271,6 +271,10 @@ function OnboardingStyles() {
       .ef-btn.ef-primary:disabled { opacity: .45; cursor: not-allowed; }
       .ef-btn.ef-ghost { border: none; background: transparent; color: var(--ef-text-muted); font-weight: 600; font-size: 12px; }
       .ef-btn:focus-visible, .ef-link:focus-visible { outline: 2px solid var(--ef-accent); outline-offset: 2px; }
+
+      @media (prefers-reduced-motion: reduce) {
+        * { transition: none !important; animation: none !important; }
+      }
     `}</style>
   );
 }

@@ -30,8 +30,17 @@ export function LanguagePicker({
         setOpen(false);
       }
     }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    }
     document.addEventListener("mousedown", onDocPointer);
-    return () => document.removeEventListener("mousedown", onDocPointer);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onDocPointer);
+      document.removeEventListener("keydown", onKeyDown);
+    };
   }, [open]);
 
   const selected = options.find((option) => option.code === value);

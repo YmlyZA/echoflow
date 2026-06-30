@@ -17,14 +17,14 @@ describe("theme tokens", () => {
       expect(typeof LIGHT_THEME[k]).toBe("string");
       expect(typeof DARK_THEME[k]).toBe("string");
     }
-    expect(LIGHT_THEME.accent).toBe("#0d8a7a");
+    expect(LIGHT_THEME.accent).toBe("#0c8273");
     expect(DARK_THEME.accent).toBe("#67d7c2");
   });
 
   it("themeVariables emits an --ef- custom property per token", () => {
     const vars = themeVariables(LIGHT_THEME);
-    expect(vars).toContain("--ef-accent: #0d8a7a;");
-    expect(vars).toContain("--ef-text-muted: #6b7280;");
+    expect(vars).toContain("--ef-accent: #0c8273;");
+    expect(vars).toContain("--ef-text-muted: #677077;");
   });
 
   it("themeStyleSheet wraps the variables in the given selector", () => {
