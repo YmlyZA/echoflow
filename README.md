@@ -24,6 +24,12 @@ Out of scope:
 - Search across history.
 - Local STT or local translation models.
 
+## Why localhost / self-host
+
+EchoFlow runs a backend server on your own machine using your own ASR and translation provider credentials. The extension is hard-scoped to `127.0.0.1` and `localhost` — it cannot reach any remote server. Audio goes from your browser to your machine and nowhere else. Provider secrets stay in your backend environment files; the extension never sees them. This design means there are no EchoFlow-operated servers, no per-user accounts, and no data sent to the extension authors.
+
+See [`docs/store-listing.md`](docs/store-listing.md) for the prepared Chrome Web Store listing draft (not yet published).
+
 ## Setup
 
 Install dependencies:
@@ -124,8 +130,13 @@ The extension captures tab audio as 16 kHz/16-bit/mono PCM (via an AudioWorklet)
 2. Open `chrome://extensions`.
 3. Enable Developer mode.
 4. Click Load unpacked.
-5. Select `apps/extension/.output/chrome-mv3`.
-6. Open the extension options page and set the backend URL to `http://127.0.0.1:8787` and the API key to `dev-key`.
+5. Select `apps/extension/.output/chrome-mv3`. The extension ships with an icon; the EchoFlow toolbar button appears immediately.
+6. The setup wizard opens automatically on first install. Follow the three steps:
+   - **Connect** — enter the backend URL (`http://127.0.0.1:8787`) and API key (`dev-key`), then click Connect.
+   - **Languages** — pick your target language.
+   - **Ready** — click Finish. The toolbar popup now starts and stops sessions; the subtitle overlay renders on the page.
+
+If you need to revisit the wizard later, click **Finish setup** in the popup or **Run setup again** in the options page.
 
 ## Test and Verification Commands
 
