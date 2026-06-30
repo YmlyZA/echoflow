@@ -140,11 +140,11 @@ function ConnectStep({ view, handlers }: { view: OnboardingView; handlers: Onboa
       <p className="ef-step-desc">EchoFlow streams audio to a local backend you run yourself. Point the extension at it.</p>
       <label className="ef-field">
         <span className="ef-label">Backend URL</span>
-        <input className="ef-input" value={view.serverUrl} onChange={(e) => handlers.onServerUrlChange(e.currentTarget.value)} />
+        <input className="ef-input" placeholder="http://127.0.0.1:8787" value={view.serverUrl} onChange={(e) => handlers.onServerUrlChange(e.currentTarget.value)} />
       </label>
       <label className="ef-field">
         <span className="ef-label">API key</span>
-        <input className="ef-input" type="password" value={view.apiKey} onChange={(e) => handlers.onApiKeyChange(e.currentTarget.value)} />
+        <input className="ef-input" type="password" placeholder="dev-key" value={view.apiKey} onChange={(e) => handlers.onApiKeyChange(e.currentTarget.value)} />
       </label>
 
       {view.connectState === "ok" && view.connectSummary ? (

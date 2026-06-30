@@ -74,7 +74,10 @@ function OnboardingRoot() {
     () => (settings && capabilities ? capabilities.modes[settings.mode] : null),
     [settings, capabilities]
   );
-  const connected = connectState === "ok";
+  const connected =
+    connectState === "ok" &&
+    capabilities !== null &&
+    summarizeCapabilities(capabilities).tone !== "none";
 
   const patch = useCallback((next: Partial<ExtensionSettings>) => {
     setSettings((current) => (current ? { ...current, ...next } : current));
