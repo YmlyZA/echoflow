@@ -156,8 +156,7 @@ function ConnectStep({ view, handlers }: { view: OnboardingView; handlers: Onboa
         <div className="ef-test ef-test-err" role="status">
           <span className="ef-test-ic">!</span>
           <div>
-            {/* dangerouslySetInnerHTML preserves the apostrophe literally (React 19 escapes ' → &#x27; in text nodes) */}
-            <span dangerouslySetInnerHTML={{__html: "<b>Can't reach the backend.</b> Is it running? Start it with <code>pnpm --filter @echoflow/backend dev</code>, then retry. "}} />
+            <b>Can't reach the backend.</b> Is it running? Start it with <code>pnpm --filter @echoflow/backend dev</code>, then retry.{" "}
             <button className="ef-link" type="button" onClick={handlers.onOpenSetupGuide}>Setup guide →</button>
           </div>
         </div>

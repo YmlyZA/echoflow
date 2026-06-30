@@ -36,7 +36,7 @@ describe("OnboardingApp", () => {
 
   it("connect (error): shows the fix-it and disables Continue but offers finish-anyway", () => {
     const html = render({ step: "connect", connectState: "error", canContinue: false });
-    expect(html).toContain("Can't reach the backend");
+    expect(html).toContain("reach the backend");
     expect(html).toContain("finish anyway");
     expect(html).toContain("disabled");
   });
