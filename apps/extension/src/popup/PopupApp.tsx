@@ -29,6 +29,7 @@ export interface PopupHandlers {
   onModeChange(mode: SubtitleMode): void;
   onTargetChange(code: string): void;
   onOpenOptions(): void;
+  onResumeSetup(): void;
 }
 
 export function PopupApp({
@@ -80,8 +81,8 @@ export function PopupApp({
               </div>
             </div>
           ) : view.startReason === "finish_setup" ? (
-            <button className="ef-setup" type="button" onClick={handlers.onOpenOptions}>
-              Finish setup in Options
+            <button className="ef-setup" type="button" onClick={handlers.onResumeSetup}>
+              Finish setup
             </button>
           ) : (
             <p className="ef-tabline">

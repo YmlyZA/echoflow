@@ -7,7 +7,8 @@ const handlers: PopupHandlers = {
   onStop() {},
   onModeChange() {},
   onTargetChange() {},
-  onOpenOptions() {}
+  onOpenOptions() {},
+  onResumeSetup() {}
 };
 
 const baseView: PopupView = {
@@ -55,7 +56,12 @@ describe("PopupApp", () => {
 
   it("finish_setup: blocks Start and points to settings", () => {
     const html = render({ startReason: "finish_setup" });
-    expect(html).toContain("Finish setup in Options");
+    expect(html).toContain("Finish setup");
+  });
+
+  it("finish_setup: shows the resume-setup button", () => {
+    const html = render({ startReason: "finish_setup" });
+    expect(html).toContain("Finish setup");
   });
 
   it("error: surfaces the message inline", () => {

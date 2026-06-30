@@ -211,7 +211,11 @@ function PopupRoot() {
     onStop: () => void onStop(),
     onModeChange,
     onTargetChange,
-    onOpenOptions
+    onOpenOptions,
+    onResumeSetup: () => {
+      void chrome.tabs.create({ url: chrome.runtime.getURL("onboarding.html") });
+      window.close();
+    }
   };
 
   return <PopupApp view={view} handlers={handlers} />;
