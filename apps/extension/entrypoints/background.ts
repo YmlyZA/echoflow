@@ -46,8 +46,11 @@ async function commitDetectedSourceLanguage(language: string): Promise<void> {
 }
 
 export default defineBackground(() => {
-  chrome.runtime.onInstalled.addListener(() => {
+  chrome.runtime.onInstalled.addListener((details) => {
     chrome.action.setTitle({ title: "EchoFlow" });
+    if (details.reason === "install") {
+      void chrome.tabs.create({ url: chrome.runtime.getURL("onboarding.html") });
+    }
   });
 
   chrome.runtime.onMessage.addListener((message: unknown) => {

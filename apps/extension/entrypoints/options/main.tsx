@@ -172,6 +172,13 @@ function OptionsApp() {
       <header className="ef-header">
         <span className="ef-wordmark">EchoFlow</span>
         <StatusPill capsState={capsState} />
+        <button
+          type="button"
+          className="ef-secondary"
+          onClick={() => void chrome.tabs.create({ url: chrome.runtime.getURL("onboarding.html") })}
+        >
+          Run setup again
+        </button>
       </header>
 
       {loadingError ? (
