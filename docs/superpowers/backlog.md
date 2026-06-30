@@ -2,15 +2,15 @@
 
 Captured 2026-06-24. Directions agreed but deferred while we focus on the UX overhaul (Direction A).
 
-## UX overhaul arc (Direction A — in progress)
+## UX overhaul arc (Direction A — ✅ complete)
 
-Raising the extension to a real-product bar. Each slice = its own spec → plan → build.
+Raised the extension to a real-product bar. Each slice = its own spec → plan → build. All five shipped (PRs #5–12).
 
 1. ✅ **Options redesign + capability-driven language selection** — *shipped* (PRs #5–7) → `specs/2026-06-24-options-redesign-language-capabilities-design.md`. Established the Direction-B design language (teal "Focus Studio", light options / dark overlay) and explicit source/target language selection.
 2. ✅ **Overlay redesign** — *shipped* (PR #9) → `specs/2026-06-25-overlay-redesign-design.md`. On-brand panel wired to `DARK_THEME` tokens, hover-reveal icon controls, single status pill (connection lifecycle + live mode 一致/实时), client-side `SESSION_ERROR` surfaced inline.
 3. ✅ **Popup** (new surface) — *shipped* (PR #10) → `specs/2026-06-27-popup-control-center-design.md`. Toolbar icon opens a light-theme control center: start/stop (capture gesture moved into the popup), status pill + live card, quick mode/language controls, recent-history peek, Open-Options link. Bare mode labels (`一致/实时`).
 4. ✅ **Onboarding / first-run** — *shipped* (PR #11) → `specs/2026-06-30-onboarding-first-run-design.md`. Auto-opening 4-step wizard (Welcome → Connect → Languages → Ready); the Connect step is a live `/v1/capabilities` test that blocks advancing until the backend is reachable + usable, with a "finish anyway" escape. Honest self-host framing; re-runnable from popup/Options.
-5. **Store-readiness** — *up next*. Icon, screenshots, listing copy, accessibility audit.
+5. ✅ **Store-readiness** — *shipped* (PR #12) → `specs/2026-06-30-store-readiness-design.md`. EchoFlow icon (soundwave over bilingual captions), WCAG-AA contrast pass + `prefers-reduced-motion` + picker Escape, prepared store-listing copy + screenshot guide (`docs/store-listing.md`), self-host README polish. Actual Web Store submission stays deferred (localhost/self-host model).
 
 ## B — Productionization / engineering baseline
 
