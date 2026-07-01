@@ -107,6 +107,7 @@ export class PipelineSubtitleSource implements SubtitleSource {
     const stream = this.speechProvider.open({
       onSegment,
       onError: (error) => opts.onError?.(error),
+      onStatus: (state) => opts.onEvent({ type: "status", state }),
     });
 
     return {

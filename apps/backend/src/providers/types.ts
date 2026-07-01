@@ -26,6 +26,7 @@ export type SpeechProvider = {
   open(opts: {
     onSegment: (event: SegmentEvent) => void;
     onError?: (error: Error) => void;
+    onStatus?: (state: "reconnecting" | "live") => void;
   }): SpeechRecognitionStream;
 };
 
