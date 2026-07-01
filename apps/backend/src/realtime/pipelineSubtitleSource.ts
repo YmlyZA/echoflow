@@ -29,6 +29,17 @@ export class PipelineSubtitleSource implements SubtitleSource {
     let translating = false;
     let closed = false;
     let tail: Promise<void> = Promise.resolve();
+    let idleResolvers: Array<() => void> = [];
+
+    const resolveIdleIfDone = (): void => {
+      if (pendingFinal === undefined && !translating) {
+        const resolvers = idleResolvers;
+        idleResolvers = [];
+        for (const resolve of resolvers) {
+          resolve();
+        }
+      }
+    };
 
     const drainTranslations = async (): Promise<void> => {
       if (translating) {
@@ -67,6 +78,7 @@ export class PipelineSubtitleSource implements SubtitleSource {
         }
       } finally {
         translating = false;
+        resolveIdleIfDone();
       }
     };
 
@@ -120,6 +132,10 @@ export class PipelineSubtitleSource implements SubtitleSource {
       async end(): Promise<void> {
         await stream.end();
         await tail;
+        await new Promise<void>((resolve) => {
+          if (pendingFinal === undefined && !translating) { resolve(); return; }
+          idleResolvers.push(resolve);
+        });
       },
       async close(): Promise<void> {
         closed = true;
