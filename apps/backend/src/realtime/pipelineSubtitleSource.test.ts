@@ -76,6 +76,41 @@ describe("PipelineSubtitleSource", () => {
     );
   });
 
+  it("end() awaits in-flight translation before resolving (trailing final survives close)", async () => {
+    const speech = stubSpeech();
+
+    let resolveTranslation!: (value: string) => void;
+    const translation: TranslationProvider = {
+      translate: () => new Promise<string>((resolve) => { resolveTranslation = resolve; }),
+      close: () => {},
+    };
+
+    const events: ServerEvent[] = [];
+    const source = new PipelineSubtitleSource(speech.provider, translation, "zh-CN");
+    const stream = source.open({ onEvent: (event) => events.push(event) });
+
+    // Emit a final segment so a translation is now in-flight
+    speech.emit({ kind: "final", segmentId: "seg-1", text: "hello", startTimeMs: 0, endTimeMs: 1 });
+
+    // Call end() — it must NOT resolve while the translation is still pending
+    let endResolved = false;
+    const endPromise = stream.end().then(() => { endResolved = true; });
+
+    // Flush enough microtask turns for end()'s internal awaits to settle
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+
+    expect(endResolved).toBe(false); // translation still in-flight, end() must block
+
+    // Resolve the deferred translation; now end() should resolve AND the final event emitted
+    resolveTranslation("你好");
+    await endPromise;
+
+    expect(endResolved).toBe(true);
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "final", segmentId: "seg-1", translatedText: "你好" }),
+    );
+  });
+
   it("emits a translated final and drops a stale one (latest-wins)", async () => {
     const speech = stubSpeech();
     let resolveFirst: (value: string) => void = () => {};

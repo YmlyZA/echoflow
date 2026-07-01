@@ -164,6 +164,17 @@ describe("reducer bounds finalized ids", () => {
   });
 });
 
+describe("reducer status events", () => {
+  it("tracks providerConnection from status events", () => {
+    let state = createInitialSubtitleState();
+    expect(state.providerConnection).toBe("live");
+    state = reduceSubtitleEvent(state, { type: "status", state: "reconnecting" });
+    expect(state.providerConnection).toBe("reconnecting");
+    state = reduceSubtitleEvent(state, { type: "status", state: "live" });
+    expect(state.providerConnection).toBe("live");
+  });
+});
+
 describe("reducer speaker tracking", () => {
   it("copies speakerId onto the current segment and tracks first-seen order", () => {
     let state = createInitialSubtitleState();

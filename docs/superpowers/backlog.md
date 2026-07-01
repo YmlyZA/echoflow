@@ -27,8 +27,9 @@ Raised the extension to a real-product bar. Each slice = its own spec → plan �
 ## D — Quality / observability
 
 - **Automated e2e** — bring interpret/pipeline validation into CI (Playwright + synthetic audio). Blocker: `tabCapture` needs a real user gesture; needs a workaround. As of Slice 3 the `extension-smoke` Playwright test is retargeted to the popup's `START_FROM_POPUP` path but `test.skip`'d — the popup Start gesture (and the SW→backend WS bridge) can't be synthesized headlessly. Un-skip once the gesture/connectivity workaround lands.
-- **Backend↔Volcengine auto-reconnect** — neither pipeline nor interpret reconnects on a mid-session drop (deferred since Cycle 1).
-- **Drain trailing final on stop** — stopping mid-utterance drops the in-progress final (known deferred edge).
+- ✅ **Backend↔Volcengine auto-reconnect** — *shipped* → `specs/2026-07-01-session-robustness-design.md`. A reusable `withReconnect` transport wrapper (retryable-vs-fatal classify, exponential backoff ~6 attempts, re-runs the session-init frame, drops audio during the gap) adopted by **both** pipeline ASR and interpret AST paths; a transient `status` `ServerEvent` drives the overlay's existing 重连中… pill. Accept-the-gap (no audio replay). *Follow-up:* regenerate session/request ids per reconnect if a real drop shows Volcengine rejects duplicates (currently reused).
+- ✅ **Drain trailing final on stop** — *shipped* (same design) → a `createDrainGate` helper makes each adapter's `end()` await the trailing final (bounded ~1500ms timeout); pipeline `end()` also awaits the in-flight translation so the last translated line survives `close()`.
+- Validated by mock-transport/timer unit tests; a real Volcengine drop is a manual post-merge check (kill/restore connectivity → 重连中… then resume; stop mid-sentence → last line retained).
 - Parked Cycle-2 minors: interpret in-flight-after-`end()` and double-`close()` are untested.
 
 ## Language support note

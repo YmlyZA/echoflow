@@ -135,6 +135,16 @@ describe("protocol events", () => {
       })
     ).toBe(false);
   });
+
+  it("accepts a status event for both connection states", () => {
+    expect(isServerEvent({ type: "status", state: "reconnecting" })).toBe(true);
+    expect(isServerEvent({ type: "status", state: "live" })).toBe(true);
+  });
+
+  it("rejects a status event with an unknown or missing state", () => {
+    expect(isServerEvent({ type: "status", state: "paused" })).toBe(false);
+    expect(isServerEvent({ type: "status" })).toBe(false);
+  });
 });
 
 describe("isServerEvent final timestamps", () => {

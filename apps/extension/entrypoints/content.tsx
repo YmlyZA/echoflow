@@ -141,7 +141,8 @@ function EchoFlowMount() {
   const lifecycle = deriveOverlayStatus({
     connectionStatus,
     hasError: subtitleState.transientError !== null || sessionError !== null,
-    hasSignal
+    hasSignal,
+    providerReconnecting: subtitleState.providerConnection === "reconnecting"
   });
 
   let speaker: { number: number; color: string } | null = null;

@@ -93,12 +93,35 @@ describe("InterpretationSubtitleSource", () => {
     });
   });
 
-  it("routes a transport error to onError", () => {
+  it("routes an AST protocol error to onError directly (bypasses reconnect)", () => {
     const t = stubTransport();
     let errored: Error | undefined;
     const source = new InterpretationSubtitleSource(CONFIG, "en", "zh-CN", t.factory);
     source.open({ onEvent: () => {}, onError: (e) => (errored = e) });
-    t.fail(new Error("boom"));
-    expect(errored?.message).toBe("boom");
+    // Bare protobuf: ResponseMeta { StatusCode=11303, Message="boom" }
+    // Field 1 wire 2 (0x0a), len 9, field 3 wire 0 (0x18) varint(11303)=[0xa7,0x58],
+    // field 4 wire 2 (0x22), len 4, "boom"=[0x62,0x6f,0x6f,0x6d]
+    t.emit(Buffer.from("0a0918a7582204626f6f6d", "hex"));
+    expect(errored?.message).toBe("AST error 11303: boom");
+  });
+
+  it("re-sends StartSession and emits a status event on a retryable drop", () => {
+    const sockets: Array<{ cb: any; sent: Buffer[] }> = [];
+    const connect = (_opts: any, cb: any) => {
+      const s = { cb, sent: [] as Buffer[] };
+      sockets.push(s);
+      return { send: (d: Buffer) => s.sent.push(d), close: () => {} };
+    };
+    const events: ServerEvent[] = [];
+    let fireTimer: () => void = () => {};
+    const source = new InterpretationSubtitleSource(
+      CONFIG, "en", "zh-CN", connect, { setTimer: (fn) => { fireTimer = fn; } }
+    );
+    source.open({ onEvent: (e) => events.push(e) });
+    expect(sockets[0]!.sent).toHaveLength(1);       // initial StartSession
+    sockets[0]!.cb.onClose(1006, "abnormal");
+    fireTimer();
+    expect(sockets[1]!.sent).toHaveLength(1);        // StartSession re-sent
+    expect(events).toContainEqual({ type: "status", state: "reconnecting" });
   });
 });

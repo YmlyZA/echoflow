@@ -141,6 +141,26 @@ describe("VolcengineSpeechProvider", () => {
     });
   });
 
+  it("re-sends the config frame and reports status on a retryable drop", () => {
+    const sockets: Array<{ cb: any; sent: Buffer[] }> = [];
+    const connect = (_opts: any, cb: any) => {
+      const s = { cb, sent: [] as Buffer[] };
+      sockets.push(s);
+      return { send: (d: Buffer) => s.sent.push(d), close: () => {} };
+    };
+    const statuses: string[] = [];
+    let fireTimer: () => void = () => {};
+    const provider = new VolcengineSpeechProvider(CONFIG, connect, {
+      setTimer: (fn) => { fireTimer = fn; }
+    });
+    provider.open({ onSegment: () => {}, onStatus: (s) => statuses.push(s) });
+    expect(sockets[0]!.sent).toHaveLength(1);      // initial config frame
+    sockets[0]!.cb.onClose(1006, "abnormal");
+    expect(statuses).toEqual(["reconnecting"]);
+    fireTimer();
+    expect(sockets[1]!.sent).toHaveLength(1);      // config re-sent on reconnect
+  });
+
   it("ignores frames and messages after close", () => {
     const transport = createFakeTransport();
     const provider = new VolcengineSpeechProvider(CONFIG, transport.factory);
