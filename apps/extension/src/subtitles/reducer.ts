@@ -24,6 +24,7 @@ export interface SubtitleState {
   targetLanguage: string | null;
   transientError: TransientSubtitleError | null;
   seenSpeakerIds: readonly string[];
+  providerConnection: "live" | "reconnecting";
 }
 
 export function createInitialSubtitleState(): SubtitleState {
@@ -33,7 +34,8 @@ export function createInitialSubtitleState(): SubtitleState {
     detectedSourceLanguage: null,
     targetLanguage: null,
     transientError: null,
-    seenSpeakerIds: []
+    seenSpeakerIds: [],
+    providerConnection: "live"
   };
 }
 
@@ -76,6 +78,8 @@ export function reduceSubtitleEvent(
           message: event.message
         }
       };
+    case "status":
+      return { ...state, providerConnection: event.state };
   }
 }
 

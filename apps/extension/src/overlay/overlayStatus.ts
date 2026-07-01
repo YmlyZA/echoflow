@@ -6,21 +6,19 @@ export interface OverlayStatusInput {
   connectionStatus: "reconnecting" | "connected" | null;
   hasError: boolean;
   hasSignal: boolean;
+  providerReconnecting: boolean;
 }
 
 export function deriveOverlayStatus(input: OverlayStatusInput): OverlayLifecycle {
   if (input.hasError) {
     return "error";
   }
-
-  if (input.connectionStatus === "reconnecting") {
+  if (input.connectionStatus === "reconnecting" || input.providerReconnecting) {
     return "reconnecting";
   }
-
   if (input.hasSignal || input.connectionStatus === "connected") {
     return "live";
   }
-
   return "connecting";
 }
 
