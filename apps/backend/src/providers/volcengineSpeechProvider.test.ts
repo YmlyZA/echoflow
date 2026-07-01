@@ -16,12 +16,15 @@ const CONFIG = {
 
 function createFakeTransport() {
   const sent: Buffer[] = [];
+  let closes = 0;
   let callbacks: VolcengineAsrTransportCallbacks | undefined;
   const factory: VolcengineAsrTransportFactory = (_options, cbs) => {
     callbacks = cbs;
     return {
       send: (data: Buffer) => sent.push(data),
-      close: () => {},
+      close: () => {
+        closes += 1;
+      },
     };
   };
   return {
@@ -29,6 +32,7 @@ function createFakeTransport() {
     sent,
     emit: (message: Buffer) => callbacks?.onMessage(message),
     fail: (error: Error) => callbacks?.onError(error),
+    closes: () => closes,
   };
 }
 
@@ -159,6 +163,64 @@ describe("VolcengineSpeechProvider", () => {
     expect(statuses).toEqual(["reconnecting"]);
     fireTimer();
     expect(sockets[1]!.sent).toHaveLength(1);      // config re-sent on reconnect
+  });
+
+  it("stops sending audio during the drain window and after end()", async () => {
+    const transport = createFakeTransport();
+    let fireDrain: () => void = () => {};
+    const provider = new VolcengineSpeechProvider(CONFIG, transport.factory, {
+      setTimer: (fn) => {
+        fireDrain = fn;
+      },
+    });
+    const stream = provider.open({ onSegment: () => {} });
+    const afterOpen = transport.sent.length; // config frame(s)
+
+    const endPromise = stream.end(); // sends the last frame, arms drain, awaits (timer captured)
+    expect(transport.sent.length).toBe(afterOpen + 1); // only the isLast frame
+
+    stream.pushFrame({ data: Buffer.from([1]), sequenceNumber: 1, timestampMs: 0 }); // during drain
+    expect(transport.sent.length).toBe(afterOpen + 1); // dropped — no audio after end()
+
+    fireDrain();
+    await endPromise;
+
+    stream.pushFrame({ data: Buffer.from([2]), sequenceNumber: 2, timestampMs: 0 }); // after end
+    expect(transport.sent.length).toBe(afterOpen + 1); // still dropped
+  });
+
+  it("end() is single-shot (last frame sent once)", async () => {
+    const transport = createFakeTransport();
+    const provider = new VolcengineSpeechProvider(CONFIG, transport.factory, {
+      setTimer: (fn) => fn(),
+    });
+    const stream = provider.open({ onSegment: () => {} });
+    const afterOpen = transport.sent.length;
+    await stream.end();
+    await stream.end();
+    expect(transport.sent.length).toBe(afterOpen + 1);
+  });
+
+  it("close() is idempotent", async () => {
+    const transport = createFakeTransport();
+    const provider = new VolcengineSpeechProvider(CONFIG, transport.factory, {
+      setTimer: (fn) => fn(),
+    });
+    const stream = provider.open({ onSegment: () => {} });
+    await stream.close();
+    await stream.close();
+    expect(transport.closes()).toBe(1);
+  });
+
+  it("close() after end() still closes the transport once", async () => {
+    const transport = createFakeTransport();
+    const provider = new VolcengineSpeechProvider(CONFIG, transport.factory, {
+      setTimer: (fn) => fn(),
+    });
+    const stream = provider.open({ onSegment: () => {} });
+    await stream.end();
+    await stream.close();
+    expect(transport.closes()).toBe(1);
   });
 
   it("ignores frames and messages after close", () => {
