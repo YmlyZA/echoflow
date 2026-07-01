@@ -22,6 +22,11 @@ export type FinalSubtitleEvent = {
   speakerId?: string;
 };
 
+export type StatusEvent = {
+  type: "status";
+  state: "reconnecting" | "live";
+};
+
 export type ErrorEvent = {
   type: "error";
   code: string;
@@ -32,6 +37,7 @@ export type ServerEvent =
   | LanguageEvent
   | PartialSubtitleEvent
   | FinalSubtitleEvent
+  | StatusEvent
   | ErrorEvent;
 
 export type SubtitleSegment = {
@@ -78,6 +84,8 @@ export function isServerEvent(value: unknown): value is ServerEvent {
         Number.isFinite(value.endTimeMs) &&
         (!hasOwn(value, "speakerId") || typeof value.speakerId === "string")
       );
+    case "status":
+      return value.state === "reconnecting" || value.state === "live";
     case "error":
       return typeof value.code === "string" && typeof value.message === "string";
     default:
