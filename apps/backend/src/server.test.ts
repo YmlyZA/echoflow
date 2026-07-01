@@ -28,8 +28,8 @@ function sendAudioFrame(
 
 const SEGMENT_ONE = [
   { type: "language", sourceLanguage: "en", targetLanguage: "zh-CN" },
-  { type: "partial", segmentId: "seg-1", sourceText: "hello" },
-  { type: "partial", segmentId: "seg-1", sourceText: "hello from" },
+  { type: "partial", segmentId: "seg-1", sourceText: "hello", speakerId: "spk-a" },
+  { type: "partial", segmentId: "seg-1", sourceText: "hello from", speakerId: "spk-a" },
   {
     type: "final",
     segmentId: "seg-1",
@@ -37,6 +37,7 @@ const SEGMENT_ONE = [
     translatedText: "[zh-CN] hello from echoflow",
     startTimeMs: 0,
     endTimeMs: 500,
+    speakerId: "spk-a",
   },
 ];
 
@@ -177,8 +178,8 @@ describe("backend realtime websocket", () => {
 
       const binaryExpected = [
         { type: "language", sourceLanguage: "en", targetLanguage: "zh-CN" },
-        { type: "partial", segmentId: "seg-1", sourceText: "hello" },
-        { type: "partial", segmentId: "seg-1", sourceText: "hello from" },
+        { type: "partial", segmentId: "seg-1", sourceText: "hello", speakerId: "spk-a" },
+        { type: "partial", segmentId: "seg-1", sourceText: "hello from", speakerId: "spk-a" },
         {
           type: "final",
           segmentId: "seg-1",
@@ -186,6 +187,7 @@ describe("backend realtime websocket", () => {
           translatedText: "[zh-CN] hello from echoflow",
           startTimeMs: 0,
           endTimeMs: 0,
+          speakerId: "spk-a",
         },
       ];
       const received = await events;

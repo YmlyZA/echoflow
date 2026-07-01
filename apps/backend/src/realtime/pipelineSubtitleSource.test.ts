@@ -59,6 +59,23 @@ describe("PipelineSubtitleSource", () => {
     );
   });
 
+  it("forwards speakerId from the segment onto the emitted final", async () => {
+    const speech = stubSpeech();
+    const events = buildSource(
+      { translate: async () => "你好", close: () => {} },
+      speech.provider,
+    );
+    speech.emit({ kind: "language", sourceLanguage: "en" });
+    speech.emit({
+      kind: "final", segmentId: "s1", text: "hi", startTimeMs: 0, endTimeMs: 1, speakerId: "spk-b",
+    });
+    await vi.waitFor(() =>
+      expect(events).toContainEqual(
+        expect.objectContaining({ type: "final", segmentId: "s1", speakerId: "spk-b" }),
+      ),
+    );
+  });
+
   it("emits a translated final and drops a stale one (latest-wins)", async () => {
     const speech = stubSpeech();
     let resolveFirst: (value: string) => void = () => {};

@@ -11,6 +11,11 @@ const SCRIPT = [
   "and a third line to finalize",
 ];
 
+// Parallel to SCRIPT (one entry per segment); the `?? "spk-a"` keeps the type
+// `string` under noUncheckedIndexedAccess — the index is always in range because
+// emissions only happen after the SCRIPT[segmentIndex] guard.
+const SPEAKERS = ["spk-a", "spk-b", "spk-a"];
+
 export class FakeSpeechProvider implements SpeechProvider {
   open(opts: {
     onSegment: (event: SegmentEvent) => void;
@@ -44,6 +49,7 @@ export class FakeSpeechProvider implements SpeechProvider {
       }
       wordIndex += 1;
       const segmentId = `seg-${segmentIndex + 1}`;
+      const speakerId = SPEAKERS[segmentIndex] ?? "spk-a";
 
       if (wordIndex < words.length) {
         opts.onSegment({
@@ -51,6 +57,7 @@ export class FakeSpeechProvider implements SpeechProvider {
           segmentId,
           text: words.slice(0, wordIndex).join(" "),
           startTimeMs: segmentStartMs,
+          speakerId,
         });
         return;
       }
@@ -61,6 +68,7 @@ export class FakeSpeechProvider implements SpeechProvider {
         text: words.join(" "),
         startTimeMs: segmentStartMs,
         endTimeMs: frame.timestampMs,
+        speakerId,
       });
       segmentIndex += 1;
       wordIndex = 0;
@@ -82,6 +90,7 @@ export class FakeSpeechProvider implements SpeechProvider {
             text: words.join(" "),
             startTimeMs: segmentStartMs,
             endTimeMs: lastTimestampMs,
+            speakerId: SPEAKERS[segmentIndex] ?? "spk-a",
           });
           segmentIndex += 1;
           wordIndex = 0;
