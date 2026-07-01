@@ -14,7 +14,7 @@ Raised the extension to a real-product bar. Each slice = its own spec → plan �
 
 ## B — Productionization / engineering baseline
 
-- ✅ **CI** — *shipped* (PR #14) → `.github/workflows/ci.yml`. A `check` job (pnpm@10 + Node 22, cached) runs `install --frozen-lockfile` → `typecheck` → `test` → `build` on every PR to `main` + pushes to `main`. Excludes the skip'd Playwright e2e (Direction D). **Remaining one-time manual step:** enable branch protection on `main` (Settings → Branches → require the `check` status check) to actually *block* failing merges — the workflow only reports until then.
+- ✅ **CI** — *shipped* (PR #14) → `.github/workflows/ci.yml`. A `check` job (pnpm@10 + Node 22, cached) runs `install --frozen-lockfile` → `typecheck` → `test` → `build` on every PR to `main` + pushes to `main`. Excludes the skip'd Playwright e2e (Direction D). **Branch protection on `main` now requires the `check` status check** — a failing run blocks the merge, and all changes (even docs) go through a PR.
 - **Packaging / distribution** — beyond load-unpacked: a distributable build, eventually Chrome Web Store.
 - Consider the `repo-production-review` skill for a systematic MVP→production gap analysis.
 
