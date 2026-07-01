@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { OnboardingApp, type OnboardingView, type OnboardingHandlers } from "./OnboardingApp";
 
 const handlers: OnboardingHandlers = {
-  onServerUrlChange() {}, onApiKeyChange() {}, onModeChange() {}, onTargetChange() {},
+  onServerUrlChange() {}, onApiKeyChange() {}, onModeChange() {},
+  onSourceChange() {}, onTargetChange() {},
   onBack() {}, onNext() {}, onFinishAnyway() {}, onSkip() {}, onDone() {},
   onOpenOptions() {}, onOpenSetupGuide() {}
 };
@@ -16,8 +17,10 @@ const base: OnboardingView = {
   connectState: "idle",
   connectSummary: null,
   mode: "pipeline",
+  autoDetect: true,
   sourceLanguage: "en",
   targetLanguage: "zh-CN",
+  sourceOptions: [{ code: "en", label: "English", pivot: true }],
   targetOptions: [{ code: "zh-CN", label: "中文 (简体)", pivot: true }]
 };
 
@@ -52,10 +55,22 @@ describe("OnboardingApp", () => {
     expect(html).toContain("Interpret available");
   });
 
-  it("languages: renders the mode control and target picker", () => {
-    const html = render({ step: "languages" });
+  it("languages (auto-detect mode): shows the Auto-detect label + a target picker", () => {
+    const html = render({ step: "languages", autoDetect: true });
     expect(html).toContain('aria-label="Subtitle mode"');
+    expect(html).toContain("Auto-detect");
     expect(html).toContain('aria-label="Target language"');
+  });
+
+  it("languages (explicit-source mode): shows a source picker, no Auto-detect label", () => {
+    const html = render({
+      step: "languages",
+      autoDetect: false,
+      sourceOptions: [{ code: "en", label: "English", pivot: true }]
+    });
+    expect(html).toContain('aria-label="Source language"');
+    expect(html).toContain('aria-label="Target language"');
+    expect(html).not.toContain("Auto-detect");
   });
 
   it("ready: recaps config and points at the toolbar popup", () => {
