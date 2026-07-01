@@ -29,4 +29,39 @@ describe("finalEventToSegment", () => {
       status: "final",
     });
   });
+
+  it("carries speakerId onto the stored segment when present", () => {
+    const segment = finalEventToSegment({
+      localSessionId: "local-1",
+      event: {
+        type: "final",
+        segmentId: "s1",
+        sourceText: "hi",
+        translatedText: "你好",
+        startTimeMs: 0,
+        endTimeMs: 1,
+        speakerId: "spk-a",
+      },
+      sourceLanguage: "en",
+      targetLanguage: "zh-CN",
+    });
+    expect(segment.speakerId).toBe("spk-a");
+  });
+
+  it("omits speakerId when the event has none", () => {
+    const segment = finalEventToSegment({
+      localSessionId: "local-1",
+      event: {
+        type: "final",
+        segmentId: "s1",
+        sourceText: "hi",
+        translatedText: "你好",
+        startTimeMs: 0,
+        endTimeMs: 1,
+      },
+      sourceLanguage: "en",
+      targetLanguage: "zh-CN",
+    });
+    expect(segment.speakerId).toBeUndefined();
+  });
 });

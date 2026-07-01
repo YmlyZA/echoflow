@@ -147,6 +147,35 @@ describe("history store", () => {
       )
     );
   });
+
+  it("prefixes text export with Speaker N only when the session has 2+ speakers", async () => {
+    const session = await store.createLocalSession({ now: () => 50 });
+    await store.appendSegment(
+      makeSegment({
+        sessionId: session.id,
+        segmentId: "s1",
+        sourceText: "hi",
+        translatedText: "你好",
+        speakerId: "spk-a"
+      })
+    );
+    await store.appendSegment(
+      makeSegment({
+        sessionId: session.id,
+        segmentId: "s2",
+        sourceText: "bye",
+        translatedText: "再见",
+        speakerId: "spk-b"
+      })
+    );
+
+    const text = await store.exportSessionAsText(session.id);
+    expect(text).toContain("Speaker 1: hi");
+    expect(text).toContain("Speaker 2: bye");
+
+    const json = JSON.parse(await store.exportSessionAsJson(session.id));
+    expect(json.segments[1]).toMatchObject({ speakerId: "spk-b", speakerNumber: 2 });
+  });
 });
 
 function makeSegment(
