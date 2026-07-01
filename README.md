@@ -51,6 +51,8 @@ The development defaults are:
 - `ECHOFLOW_ASR_PROVIDER=fake`
 - `ECHOFLOW_TRANSLATION_PROVIDER=fake`
 
+With these `fake` defaults the backend needs no credentials, so you can reach a full end-to-end demo (deterministic subtitles) out of the box. Real ASR and translation require Volcengine credentials — see [Provider Configuration](#provider-configuration) below; those secrets live only in the backend env file, never in the extension.
+
 `PORT` is still accepted by the backend as a compatibility fallback when `ECHOFLOW_PORT` is not set.
 
 ### Provider Configuration
@@ -123,6 +125,21 @@ apps/extension/.output/chrome-mv3
 ```
 
 The extension captures tab audio as 16 kHz/16-bit/mono PCM (via an AudioWorklet) so the backend can feed it to any streaming ASR provider.
+
+## Install (prebuilt)
+
+Non-developers can skip building the extension:
+
+1. Open the project's [GitHub Releases](../../releases) and download the latest
+   `echoflow-<version>-chrome.zip`.
+2. Unzip it to a folder you'll keep (Chrome loads it from disk).
+3. Go to `chrome://extensions`, enable **Developer mode** (top right).
+4. Click **Load unpacked** and select the unzipped folder.
+
+This is an unpacked build (not a signed `.crx`), matching EchoFlow's self-host
+model. The extension still needs the local backend running — see
+[Setup](#setup) and [Development](#development) to start it (the default `fake`
+providers need no credentials).
 
 ## Load the Extension in Chrome
 
