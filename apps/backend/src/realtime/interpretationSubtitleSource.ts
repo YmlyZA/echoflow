@@ -43,6 +43,8 @@ export class InterpretationSubtitleSource implements SubtitleSource {
     const sessionId = randomUUID();
     let languageEmitted = false;
     let closed = false;
+    let ending = false;
+    let disposed = false;
 
     const drainOpts: { setTimer?: (fn: () => void, ms: number) => void; timeoutMs?: number } = {};
     if (this.deps.setTimer !== undefined) drainOpts.setTimer = this.deps.setTimer;
@@ -111,18 +113,21 @@ export class InterpretationSubtitleSource implements SubtitleSource {
 
     return {
       pushFrame(frame: AudioFrame): void {
-        if (closed) return;
+        if (closed || ending) return;
         const audio = Buffer.isBuffer(frame.data) ? frame.data : Buffer.from(frame.data);
         transport.send(encodeAudioRequest(audio, sessionId));
       },
       async end(): Promise<void> {
-        if (closed) return;
+        if (closed || ending) return;
+        ending = true;
         transport.send(encodeFinishSession(sessionId));
         drain.arm();
         await drain.wait();
         closed = true;
       },
       async close(): Promise<void> {
+        if (disposed) return;
+        disposed = true;
         closed = true;
         transport.close();
       },

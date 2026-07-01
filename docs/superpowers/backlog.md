@@ -30,7 +30,7 @@ Raised the extension to a real-product bar. Each slice = its own spec → plan �
 - ✅ **Backend↔Volcengine auto-reconnect** — *shipped* → `specs/2026-07-01-session-robustness-design.md`. A reusable `withReconnect` transport wrapper (retryable-vs-fatal classify, exponential backoff ~6 attempts, re-runs the session-init frame, drops audio during the gap) adopted by **both** pipeline ASR and interpret AST paths; a transient `status` `ServerEvent` drives the overlay's existing 重连中… pill. Accept-the-gap (no audio replay). *Follow-up:* regenerate session/request ids per reconnect if a real drop shows Volcengine rejects duplicates (currently reused).
 - ✅ **Drain trailing final on stop** — *shipped* (same design) → a `createDrainGate` helper makes each adapter's `end()` await the trailing final (bounded ~1500ms timeout); pipeline `end()` also awaits the in-flight translation so the last translated line survives `close()`.
 - Validated by mock-transport/timer unit tests; a real Volcengine drop is a manual post-merge check (kill/restore connectivity → 重连中… then resume; stop mid-sentence → last line retained).
-- Parked Cycle-2 minors: interpret in-flight-after-`end()` and double-`close()` are untested.
+- ✅ **Cycle-2 lifecycle minors** — *shipped* → `specs/2026-07-01-stream-lifecycle-hardening-design.md`. `ending` + `disposed` guards on **both** adapter streams: no audio sent after `end()` (incl. during the drain window), `end()` single-shot, `close()` idempotent. Closed the interpret in-flight-after-`end()` and double-`close()` gaps (mirrored to pipeline ASR). 8 adapter-unit tests.
 
 ## Language support note
 

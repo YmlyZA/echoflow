@@ -41,6 +41,8 @@ export class VolcengineSpeechProvider implements SpeechProvider {
     let languageEmitted = false;
     let sequence = 1;
     let closed = false;
+    let ending = false;
+    let disposed = false;
 
     const drainOpts: { setTimer?: (fn: () => void, ms: number) => void; timeoutMs?: number } = {};
     if (this.deps.setTimer !== undefined) drainOpts.setTimer = this.deps.setTimer;
@@ -100,7 +102,7 @@ export class VolcengineSpeechProvider implements SpeechProvider {
 
     return {
       pushFrame(frame: AudioFrame): void {
-        if (closed) {
+        if (closed || ending) {
           return;
         }
         sequence += 1;
@@ -110,7 +112,8 @@ export class VolcengineSpeechProvider implements SpeechProvider {
         transport.send(encodeAudioRequest(audio, sequence, false));
       },
       async end(): Promise<void> {
-        if (closed) return;
+        if (closed || ending) return;
+        ending = true;
         sequence += 1;
         transport.send(encodeAudioRequest(Buffer.alloc(0), sequence, true));
         drain.arm();
@@ -118,6 +121,8 @@ export class VolcengineSpeechProvider implements SpeechProvider {
         closed = true;
       },
       async close(): Promise<void> {
+        if (disposed) return;
+        disposed = true;
         closed = true;
         transport.close();
       },

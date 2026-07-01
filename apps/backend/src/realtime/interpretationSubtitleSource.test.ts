@@ -14,14 +14,21 @@ function stubTransport(): {
   fail: (error: Error) => void;
   sent: Buffer[];
   options: () => AstConnectOptions | undefined;
+  closes: () => number;
 } {
   let cbs: AstTransportCallbacks | undefined;
   let opts: AstConnectOptions | undefined;
   const sent: Buffer[] = [];
+  let closes = 0;
   const factory: AstTransportFactory = (options, callbacks) => {
     opts = options;
     cbs = callbacks;
-    const transport: AstTransport = { send: (d) => sent.push(d), close: () => {} };
+    const transport: AstTransport = {
+      send: (d) => sent.push(d),
+      close: () => {
+        closes += 1;
+      },
+    };
     return transport;
   };
   return {
@@ -30,6 +37,7 @@ function stubTransport(): {
     fail: (error) => cbs?.onError(error),
     sent,
     options: () => opts,
+    closes: () => closes,
   };
 }
 
@@ -123,5 +131,63 @@ describe("InterpretationSubtitleSource", () => {
     fireTimer();
     expect(sockets[1]!.sent).toHaveLength(1);        // StartSession re-sent
     expect(events).toContainEqual({ type: "status", state: "reconnecting" });
+  });
+
+  it("stops sending audio during the drain window and after end()", async () => {
+    const t = stubTransport();
+    let fireDrain: () => void = () => {};
+    const source = new InterpretationSubtitleSource(CONFIG, "en", "zh-CN", t.factory, {
+      setTimer: (fn) => {
+        fireDrain = fn;
+      },
+    });
+    const stream = source.open({ onEvent: () => {} });
+    const afterOpen = t.sent.length; // StartSession
+
+    const endPromise = stream.end(); // sends FinishSession, arms drain, awaits
+    expect(t.sent.length).toBe(afterOpen + 1); // only FinishSession
+
+    stream.pushFrame({ data: Buffer.from([1]), sequenceNumber: 1, timestampMs: 0 }); // during drain
+    expect(t.sent.length).toBe(afterOpen + 1); // dropped
+
+    fireDrain();
+    await endPromise;
+
+    stream.pushFrame({ data: Buffer.from([2]), sequenceNumber: 2, timestampMs: 0 }); // after end
+    expect(t.sent.length).toBe(afterOpen + 1); // still dropped
+  });
+
+  it("end() is single-shot (FinishSession sent once)", async () => {
+    const t = stubTransport();
+    const source = new InterpretationSubtitleSource(CONFIG, "en", "zh-CN", t.factory, {
+      setTimer: (fn) => fn(),
+    });
+    const stream = source.open({ onEvent: () => {} });
+    const afterOpen = t.sent.length;
+    await stream.end();
+    await stream.end();
+    expect(t.sent.length).toBe(afterOpen + 1);
+  });
+
+  it("close() is idempotent", async () => {
+    const t = stubTransport();
+    const source = new InterpretationSubtitleSource(CONFIG, "en", "zh-CN", t.factory, {
+      setTimer: (fn) => fn(),
+    });
+    const stream = source.open({ onEvent: () => {} });
+    await stream.close();
+    await stream.close();
+    expect(t.closes()).toBe(1);
+  });
+
+  it("close() after end() still closes the transport once", async () => {
+    const t = stubTransport();
+    const source = new InterpretationSubtitleSource(CONFIG, "en", "zh-CN", t.factory, {
+      setTimer: (fn) => fn(),
+    });
+    const stream = source.open({ onEvent: () => {} });
+    await stream.end();
+    await stream.close();
+    expect(t.closes()).toBe(1);
   });
 });
