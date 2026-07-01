@@ -14,7 +14,6 @@ import { popupPill } from "../../src/popup/popupStatus";
 import { recentSessions } from "../../src/popup/recentSessions";
 import { evaluateStartGate } from "../../src/popup/canStart";
 import {
-  counterpartSource,
   loadSettings,
   saveSettings,
   validateSettings,
@@ -23,6 +22,7 @@ import {
 import { fetchCapabilities } from "../../src/settings/capabilitiesClient";
 import {
   coercePair,
+  sourceOptions,
   targetOptions
 } from "../../src/settings/languageSelection";
 import {
@@ -122,20 +122,31 @@ function PopupRoot() {
     [settings, capabilities, persist]
   );
 
+  const onSourceChange = useCallback(
+    (code: string) => {
+      if (!settings) return;
+      if (!modeCaps) {
+        void persist({ ...settings, sourceLanguage: code });
+        return;
+      }
+      const pair = coercePair(modeCaps, code, settings.targetLanguage);
+      void persist({
+        ...settings,
+        sourceLanguage: pair.source,
+        targetLanguage: pair.target
+      });
+    },
+    [settings, modeCaps, persist]
+  );
+
   const onTargetChange = useCallback(
     (code: string) => {
       if (!settings) return;
       if (!modeCaps) {
-        void persist({
-          ...settings,
-          targetLanguage: code,
-          sourceLanguage: counterpartSource(code)
-        });
+        void persist({ ...settings, targetLanguage: code });
         return;
       }
-      // The popup exposes only the target; derive the source from it, then
-      // snap the pair to what the mode's capabilities actually allow.
-      const pair = coercePair(modeCaps, counterpartSource(code), code);
+      const pair = coercePair(modeCaps, settings.sourceLanguage, code);
       void persist({
         ...settings,
         sourceLanguage: pair.source,
@@ -197,8 +208,10 @@ function PopupRoot() {
         ? Date.now() - (sessionState as { startedAt?: number }).startedAt!
         : null,
     mode: settings.mode,
+    autoDetect: modeCaps?.autoDetect ?? false,
     sourceLanguage: settings.sourceLanguage,
     targetLanguage: settings.targetLanguage,
+    sourceOptions: modeCaps ? sourceOptions(modeCaps) : [],
     targetOptions: modeCaps ? targetOptions(modeCaps, settings.sourceLanguage) : [],
     recent,
     startReason: gate.reason,
@@ -210,6 +223,7 @@ function PopupRoot() {
     onStart: () => void onStart(),
     onStop: () => void onStop(),
     onModeChange,
+    onSourceChange,
     onTargetChange,
     onOpenOptions,
     onResumeSetup: () => {

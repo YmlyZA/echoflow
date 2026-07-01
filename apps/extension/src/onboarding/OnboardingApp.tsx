@@ -2,6 +2,7 @@ import type { LanguageOption, SubtitleMode } from "@echoflow/protocol";
 import { LIGHT_THEME, RADIUS, themeStyleSheet } from "../ui/theme";
 import { SegmentedControl } from "../ui/SegmentedControl";
 import { LanguagePicker } from "../ui/LanguagePicker";
+import { CONTROL_STYLES } from "../ui/controlStyles";
 import { SUBTITLE_MODE_OPTIONS } from "../settings/settings";
 import { ONBOARDING_STEPS, type OnboardingStep } from "./onboardingFlow";
 import type { ConnectionSummary } from "./connectionSummary";
@@ -16,8 +17,10 @@ export interface OnboardingView {
   connectState: ConnectState;
   connectSummary: ConnectionSummary | null;
   mode: SubtitleMode;
+  autoDetect: boolean;
   sourceLanguage: string;
   targetLanguage: string;
+  sourceOptions: LanguageOption[];
   targetOptions: LanguageOption[];
 }
 
@@ -25,6 +28,7 @@ export interface OnboardingHandlers {
   onServerUrlChange(v: string): void;
   onApiKeyChange(v: string): void;
   onModeChange(m: SubtitleMode): void;
+  onSourceChange(code: string): void;
   onTargetChange(code: string): void;
   onBack(): void;
   onNext(): void;
@@ -181,8 +185,16 @@ function LanguagesStep({ view, handlers }: { view: OnboardingView; handlers: Onb
         <SegmentedControl<SubtitleMode> value={view.mode} options={SUBTITLE_MODE_OPTIONS} onChange={handlers.onModeChange} ariaLabel="Subtitle mode" />
       </div>
       <div className="ef-field">
-        <span className="ef-label">Translate to</span>
-        <LanguagePicker value={view.targetLanguage} options={view.targetOptions} onChange={handlers.onTargetChange} ariaLabel="Target language" />
+        <span className="ef-label">Languages</span>
+        <div className="ef-langrow">
+          {view.autoDetect ? (
+            <span className="ef-picker-static" aria-label="Source language">Auto-detect</span>
+          ) : (
+            <LanguagePicker value={view.sourceLanguage} options={view.sourceOptions} onChange={handlers.onSourceChange} ariaLabel="Source language" placeholder="Source" />
+          )}
+          <span className="ef-arrow" aria-hidden="true">→</span>
+          <LanguagePicker value={view.targetLanguage} options={view.targetOptions} onChange={handlers.onTargetChange} ariaLabel="Target language" placeholder="Target" />
+        </div>
       </div>
     </div>
   );
@@ -211,6 +223,7 @@ function OnboardingStyles() {
   return (
     <style>{`
       ${themeStyleSheet(LIGHT_THEME, ":root")}
+      ${CONTROL_STYLES}
       * { box-sizing: border-box; }
       body { margin: 0; background: var(--ef-bg); }
       .ef-onb-page { min-height: 100vh; display: flex; align-items: flex-start; justify-content: center;

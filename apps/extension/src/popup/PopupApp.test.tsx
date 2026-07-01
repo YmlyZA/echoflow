@@ -6,6 +6,7 @@ const handlers: PopupHandlers = {
   onStart() {},
   onStop() {},
   onModeChange() {},
+  onSourceChange() {},
   onTargetChange() {},
   onOpenOptions() {},
   onResumeSetup() {}
@@ -18,8 +19,10 @@ const baseView: PopupView = {
   tabTitle: "Northern Lights — YouTube",
   elapsedMs: null,
   mode: "pipeline",
+  autoDetect: true,
   sourceLanguage: "en",
   targetLanguage: "zh-CN",
+  sourceOptions: [{ code: "en", label: "English", pivot: true }],
   targetOptions: [{ code: "zh-CN", label: "中文 (简体)", pivot: true }],
   recent: [],
   startReason: "ok",
@@ -52,6 +55,23 @@ describe("PopupApp", () => {
     expect(html).toContain("实时 · LIVE");
     expect(html).toContain("01:05");
     expect(html).toContain("applies next session");
+  });
+
+  it("languages (auto-detect mode): shows the Auto-detect label + a target picker", () => {
+    const html = render({ autoDetect: true });
+    expect(html).toContain("Auto-detect");
+    expect(html).toContain('aria-label="Target language"');
+  });
+
+  it("languages (explicit-source mode): shows a source picker, no Auto-detect label", () => {
+    const html = render({
+      autoDetect: false,
+      mode: "interpret",
+      sourceOptions: [{ code: "en", label: "English", pivot: true }]
+    });
+    expect(html).toContain('aria-label="Source language"');
+    expect(html).toContain('aria-label="Target language"');
+    expect(html).not.toContain("Auto-detect");
   });
 
   it("finish_setup: blocks Start and points to settings", () => {

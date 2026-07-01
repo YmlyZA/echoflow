@@ -18,14 +18,17 @@ import {
 } from "../../src/onboarding/onboardingFlow";
 import { summarizeCapabilities } from "../../src/onboarding/connectionSummary";
 import {
-  counterpartSource,
   loadSettings,
   saveSettings,
   DEFAULT_SUBTITLE_FONT_SIZE,
   type ExtensionSettings
 } from "../../src/settings/settings";
 import { fetchCapabilities } from "../../src/settings/capabilitiesClient";
-import { coercePair, targetOptions } from "../../src/settings/languageSelection";
+import {
+  coercePair,
+  sourceOptions,
+  targetOptions
+} from "../../src/settings/languageSelection";
 
 const SETUP_GUIDE_URL =
   "https://github.com/YmlyZA/echoflow#readme";
@@ -98,8 +101,10 @@ function OnboardingRoot() {
     connectState,
     connectSummary: capabilities ? summarizeCapabilities(capabilities) : null,
     mode: settings.mode,
+    autoDetect: modeCaps?.autoDetect ?? false,
     sourceLanguage: settings.sourceLanguage,
     targetLanguage: settings.targetLanguage,
+    sourceOptions: modeCaps ? sourceOptions(modeCaps) : [],
     targetOptions: modeCaps ? targetOptions(modeCaps, settings.sourceLanguage) : []
   };
 
@@ -112,9 +117,14 @@ function OnboardingRoot() {
       const pair = coercePair(caps, settings.sourceLanguage, settings.targetLanguage);
       patch({ mode, sourceLanguage: pair.source, targetLanguage: pair.target });
     },
+    onSourceChange: (code) => {
+      if (!modeCaps) return patch({ sourceLanguage: code });
+      const pair = coercePair(modeCaps, code, settings.targetLanguage);
+      patch({ sourceLanguage: pair.source, targetLanguage: pair.target });
+    },
     onTargetChange: (code) => {
-      if (!modeCaps) return patch({ targetLanguage: code, sourceLanguage: counterpartSource(code) });
-      const pair = coercePair(modeCaps, counterpartSource(code), code);
+      if (!modeCaps) return patch({ targetLanguage: code });
+      const pair = coercePair(modeCaps, settings.sourceLanguage, code);
       patch({ sourceLanguage: pair.source, targetLanguage: pair.target });
     },
     onBack: () => setStep((s) => prevStep(s)),

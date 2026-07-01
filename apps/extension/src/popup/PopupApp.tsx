@@ -2,6 +2,7 @@ import type { LanguageOption, SubtitleMode } from "@echoflow/protocol";
 import { LIGHT_THEME, RADIUS, themeStyleSheet } from "../ui/theme";
 import { SegmentedControl } from "../ui/SegmentedControl";
 import { LanguagePicker } from "../ui/LanguagePicker";
+import { CONTROL_STYLES } from "../ui/controlStyles";
 import { SUBTITLE_MODE_OPTIONS } from "../settings/settings";
 import type { SessionState } from "../session/sessionState";
 import { formatElapsed, type PopupPill } from "./popupStatus";
@@ -15,8 +16,10 @@ export interface PopupView {
   tabTitle: string | null;
   elapsedMs: number | null;
   mode: SubtitleMode;
+  autoDetect: boolean;
   sourceLanguage: string;
   targetLanguage: string;
+  sourceOptions: LanguageOption[];
   targetOptions: LanguageOption[];
   recent: HistorySessionRecord[];
   startReason: StartReason;
@@ -27,6 +30,7 @@ export interface PopupHandlers {
   onStart(): void;
   onStop(): void;
   onModeChange(mode: SubtitleMode): void;
+  onSourceChange(code: string): void;
   onTargetChange(code: string): void;
   onOpenOptions(): void;
   onResumeSetup(): void;
@@ -105,13 +109,28 @@ export function PopupApp({
           </div>
 
           <div className="ef-field">
-            <span className="ef-label">Translate to</span>
-            <LanguagePicker
-              value={view.targetLanguage}
-              options={view.targetOptions}
-              onChange={handlers.onTargetChange}
-              ariaLabel="Target language"
-            />
+            <span className="ef-label">Languages</span>
+            <div className="ef-langrow">
+              {view.autoDetect ? (
+                <span className="ef-picker-static" aria-label="Source language">Auto-detect</span>
+              ) : (
+                <LanguagePicker
+                  value={view.sourceLanguage}
+                  options={view.sourceOptions}
+                  onChange={handlers.onSourceChange}
+                  ariaLabel="Source language"
+                  placeholder="Source"
+                />
+              )}
+              <span className="ef-arrow" aria-hidden="true">→</span>
+              <LanguagePicker
+                value={view.targetLanguage}
+                options={view.targetOptions}
+                onChange={handlers.onTargetChange}
+                ariaLabel="Target language"
+                placeholder="Target"
+              />
+            </div>
             {view.running ? (
               <span className="ef-hint">
                 <span className="ef-badge">applies next session</span>
@@ -149,6 +168,7 @@ function PopupStyles() {
   return (
     <style>{`
       ${themeStyleSheet(LIGHT_THEME, ":root")}
+      ${CONTROL_STYLES}
 
       * { box-sizing: border-box; }
       body { margin: 0; }
