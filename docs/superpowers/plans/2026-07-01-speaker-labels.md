@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - `speakerId` is **optional everywhere**; untouched paths (interpret source, real adapters) keep compiling and emit without it.
-- **Producers never emit `speakerId: undefined`** — use a conditional spread (`...(id !== undefined ? { speakerId: id } : {})`) when constructing events/segments, so `isServerEvent`'s `hasOwn → must be string` rule is never tripped.
+- **Never assign a possibly-`undefined` value to an optional `speakerId?` property.** The repo's tsconfig sets `exactOptionalPropertyTypes: true` and `noUncheckedIndexedAccess: true`, so `speakerId: someString | undefined` fails to typecheck against `speakerId?: string`, AND `speakerId: undefined` would trip `isServerEvent`'s `hasOwn → must be string` rule. When constructing ANY object with `speakerId` (wire events, reducer state, history segments) from a possibly-undefined source, use a conditional spread: `...(id !== undefined ? { speakerId: id } : {})`. Run `typecheck`, not just tests, before considering a task done.
 - **Reveal rule:** speaker labels appear only once **≥2 distinct speakers** are seen in the session (single-speaker sessions look exactly as today). Applies to the overlay chip AND the text-export prefix.
 - **`speakerColor` palette must be ≥4.5:1** on both `DARK_THEME.bg` (`#0c0e13`) and `DARK_THEME.surface` (`#11141b`), verified with `src/ui/contrast.ts`.
 - **Color is an overlay-only affordance.** The light-themed options panel and export identify speakers by the **number** (no palette color there).
@@ -487,8 +487,21 @@ function trackSpeaker(
 }
 ```
 
-5. In the `"final"` case, add `speakerId: event.speakerId` to `currentSegment` and `seenSpeakerIds: trackSpeaker(state.seenSpeakerIds, event.speakerId)` to the returned state.
-6. In `reducePartialEvent`, add `speakerId: event.speakerId` to `currentSegment` and return `seenSpeakerIds: trackSpeaker(state.seenSpeakerIds, event.speakerId)`. (Keep the early-return-on-finalized branch unchanged.)
+5. In the `"final"` case, add the speaker to `currentSegment` via a **conditional spread** (required by `exactOptionalPropertyTypes` — a bare `speakerId: event.speakerId` is `string | undefined` and won't typecheck against `speakerId?: string`), and track it on the state:
+
+```ts
+currentSegment: {
+  segmentId: event.segmentId,
+  sourceText: event.sourceText,
+  translatedText: event.translatedText,
+  status: "final",
+  ...(event.speakerId !== undefined ? { speakerId: event.speakerId } : {})
+},
+// …existing finalizedSegmentIds…
+seenSpeakerIds: trackSpeaker(state.seenSpeakerIds, event.speakerId),
+```
+
+6. In `reducePartialEvent`, add the same conditional-spread `...(event.speakerId !== undefined ? { speakerId: event.speakerId } : {})` to the returned `currentSegment`, and return `seenSpeakerIds: trackSpeaker(state.seenSpeakerIds, event.speakerId)`. (Keep the early-return-on-finalized branch unchanged. `trackSpeaker`'s param is typed `string | undefined`, so passing `event.speakerId` directly there is fine.)
 
 - [ ] **Step 4: Run it to verify it passes**
 
