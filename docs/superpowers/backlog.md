@@ -15,7 +15,7 @@ Raised the extension to a real-product bar. Each slice = its own spec → plan �
 ## B — Productionization / engineering baseline
 
 - ✅ **CI** — *shipped* (PR #14) → `.github/workflows/ci.yml`. A `check` job (pnpm@10 + Node 22, cached) runs `install --frozen-lockfile` → `typecheck` → `test` → `build` on every PR to `main` + pushes to `main`. Excludes the skip'd Playwright e2e (Direction D). **Branch protection on `main` now requires the `check` status check** — a failing run blocks the merge, and all changes (even docs) go through a PR.
-- **Packaging / distribution** — beyond load-unpacked: a distributable build, eventually Chrome Web Store.
+- ✅ **Packaging / distribution** — *shipped* → `.github/workflows/release.yml`, `specs/2026-07-01-packaging-release-design.md`. Tag-driven GitHub Release: pushing a `vX.Y.Z` tag (optional `-prerelease` suffix) derives the version from the tag (`apps/extension/scripts/print-version.ts` → the tested `deriveVersion` helper), runs `typecheck` + `test`, `wxt zip`s the extension, and publishes a Release with `echoflow-<version>-chrome.zip`. Version is tag-only (dev fallback `0.0.0`); WXT keeps the manifest `version` numeric and puts any suffix in `version_name`. README has a prebuilt-install section; `docs/RELEASING.md` is the maintainer guide. Remaining manual step: cut the first real `vX.Y.Z` tag to publish the first Release. Chrome Web Store submission stays deferred (self-host model).
 - Consider the `repo-production-review` skill for a systematic MVP→production gap analysis.
 
 ## C — Feature expansion
