@@ -102,6 +102,39 @@ describe("protocol events", () => {
       }).status,
     ).toBe("final");
   });
+
+  it("accepts partial and final events carrying a string speakerId", () => {
+    expect(
+      isServerEvent({ type: "partial", segmentId: "s1", sourceText: "hi", speakerId: "spk-a" })
+    ).toBe(true);
+    expect(
+      isServerEvent({
+        type: "final", segmentId: "s1", sourceText: "hi", translatedText: "你好",
+        startTimeMs: 0, endTimeMs: 1, speakerId: "spk-a"
+      })
+    ).toBe(true);
+  });
+
+  it("accepts final events with no speakerId (field is optional)", () => {
+    expect(
+      isServerEvent({
+        type: "final", segmentId: "s1", sourceText: "hi", translatedText: "你好",
+        startTimeMs: 0, endTimeMs: 1
+      })
+    ).toBe(true);
+  });
+
+  it("rejects events whose speakerId is present but not a string", () => {
+    expect(
+      isServerEvent({ type: "partial", segmentId: "s1", sourceText: "hi", speakerId: 3 })
+    ).toBe(false);
+    expect(
+      isServerEvent({
+        type: "final", segmentId: "s1", sourceText: "hi", translatedText: "你好",
+        startTimeMs: 0, endTimeMs: 1, speakerId: 3
+      })
+    ).toBe(false);
+  });
 });
 
 describe("isServerEvent final timestamps", () => {

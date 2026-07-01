@@ -24,7 +24,7 @@ export class PipelineSubtitleSource implements SubtitleSource {
     let sourceLanguage = "unknown";
     let latestSegmentId: string | undefined;
     let pendingFinal:
-      | { segmentId: string; sourceText: string; startTimeMs: number; endTimeMs: number }
+      | { segmentId: string; sourceText: string; startTimeMs: number; endTimeMs: number; speakerId?: string }
       | undefined;
     let translating = false;
     let closed = false;
@@ -61,6 +61,7 @@ export class PipelineSubtitleSource implements SubtitleSource {
               translatedText,
               startTimeMs: job.startTimeMs,
               endTimeMs: job.endTimeMs,
+              ...(job.speakerId !== undefined ? { speakerId: job.speakerId } : {}),
             });
           }
         }
@@ -88,6 +89,7 @@ export class PipelineSubtitleSource implements SubtitleSource {
             type: "partial",
             segmentId: event.segmentId,
             sourceText: event.text,
+            ...(event.speakerId !== undefined ? { speakerId: event.speakerId } : {}),
           });
         });
         return;
@@ -97,6 +99,7 @@ export class PipelineSubtitleSource implements SubtitleSource {
         sourceText: event.text,
         startTimeMs: event.startTimeMs,
         endTimeMs: event.endTimeMs,
+        ...(event.speakerId !== undefined ? { speakerId: event.speakerId } : {}),
       };
       void drainTranslations();
     };

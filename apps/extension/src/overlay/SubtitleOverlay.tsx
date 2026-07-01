@@ -22,6 +22,7 @@ export interface SubtitleOverlayProps {
     x: number;
     y: number;
   };
+  speaker?: { number: number; color: string } | null;
   onStop?: () => void;
   onHide?: () => void;
   onShow?: () => void;
@@ -51,6 +52,7 @@ export function SubtitleOverlay({
   transientError = null,
   hidden = false,
   position,
+  speaker = null,
   onStop,
   onHide,
   onShow,
@@ -93,6 +95,30 @@ export function SubtitleOverlay({
           <span className="echoflow-dot" />
           {pillText(lifecycle, mode)}
         </span>
+
+        {speaker ? (
+          <>
+            <style>{`
+              .echoflow-speaker {
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                font-size: 11px;
+                font-weight: 600;
+                line-height: 1;
+              }
+              .echoflow-speaker-dot {
+                width: 7px;
+                height: 7px;
+                border-radius: 50%;
+              }
+            `}</style>
+            <span className="echoflow-speaker" style={{ color: speaker.color }}>
+              <span className="echoflow-speaker-dot" style={{ background: speaker.color }} />
+              Speaker {speaker.number}
+            </span>
+          </>
+        ) : null}
 
         <div className="echoflow-lines" style={{ fontSize }}>
           <p className="echoflow-source">{segment?.sourceText ?? ""}</p>

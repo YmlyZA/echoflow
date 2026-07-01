@@ -163,3 +163,38 @@ describe("reducer bounds finalized ids", () => {
     expect(late).toBe(state);
   });
 });
+
+describe("reducer speaker tracking", () => {
+  it("copies speakerId onto the current segment and tracks first-seen order", () => {
+    let state = createInitialSubtitleState();
+    state = reduceSubtitleEvent(state, {
+      type: "final", segmentId: "s1", sourceText: "hi", translatedText: "你好",
+      startTimeMs: 0, endTimeMs: 1, speakerId: "spk-a"
+    });
+    expect(state.currentSegment?.speakerId).toBe("spk-a");
+    expect(state.seenSpeakerIds).toEqual(["spk-a"]);
+
+    state = reduceSubtitleEvent(state, {
+      type: "final", segmentId: "s2", sourceText: "bye", translatedText: "再见",
+      startTimeMs: 1, endTimeMs: 2, speakerId: "spk-b"
+    });
+    expect(state.seenSpeakerIds).toEqual(["spk-a", "spk-b"]);
+
+    // A returning speaker is not re-added.
+    state = reduceSubtitleEvent(state, {
+      type: "final", segmentId: "s3", sourceText: "hi again", translatedText: "又见",
+      startTimeMs: 2, endTimeMs: 3, speakerId: "spk-a"
+    });
+    expect(state.seenSpeakerIds).toEqual(["spk-a", "spk-b"]);
+  });
+
+  it("leaves seenSpeakerIds empty when events carry no speaker", () => {
+    let state = createInitialSubtitleState();
+    state = reduceSubtitleEvent(state, {
+      type: "final", segmentId: "s1", sourceText: "hi", translatedText: "你好",
+      startTimeMs: 0, endTimeMs: 1
+    });
+    expect(state.seenSpeakerIds).toEqual([]);
+    expect(state.currentSegment?.speakerId).toBeUndefined();
+  });
+});

@@ -19,5 +19,8 @@ export function finalEventToSegment(args: {
     targetLanguage: args.targetLanguage,
     sourceText: args.event.sourceText,
     translatedText: args.event.translatedText,
+    ...(args.event.speakerId !== undefined
+      ? { speakerId: args.event.speakerId }
+      : {}),
   });
 }

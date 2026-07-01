@@ -9,6 +9,7 @@ export type PartialSubtitleEvent = {
   segmentId: string;
   sourceText: string;
   translatedText?: string;
+  speakerId?: string;
 };
 
 export type FinalSubtitleEvent = {
@@ -18,6 +19,7 @@ export type FinalSubtitleEvent = {
   translatedText: string;
   startTimeMs: number;
   endTimeMs: number;
+  speakerId?: string;
 };
 
 export type ErrorEvent = {
@@ -43,6 +45,7 @@ export type SubtitleSegment = {
   translatedText: string;
   confidence?: number;
   status: "final";
+  speakerId?: string;
 };
 
 export function isServerEvent(value: unknown): value is ServerEvent {
@@ -61,7 +64,8 @@ export function isServerEvent(value: unknown): value is ServerEvent {
         typeof value.segmentId === "string" &&
         typeof value.sourceText === "string" &&
         (!hasOwn(value, "translatedText") ||
-          typeof value.translatedText === "string")
+          typeof value.translatedText === "string") &&
+        (!hasOwn(value, "speakerId") || typeof value.speakerId === "string")
       );
     case "final":
       return (
@@ -71,7 +75,8 @@ export function isServerEvent(value: unknown): value is ServerEvent {
         typeof value.startTimeMs === "number" &&
         Number.isFinite(value.startTimeMs) &&
         typeof value.endTimeMs === "number" &&
-        Number.isFinite(value.endTimeMs)
+        Number.isFinite(value.endTimeMs) &&
+        (!hasOwn(value, "speakerId") || typeof value.speakerId === "string")
       );
     case "error":
       return typeof value.code === "string" && typeof value.message === "string";

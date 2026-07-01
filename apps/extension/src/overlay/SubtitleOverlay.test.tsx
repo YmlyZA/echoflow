@@ -87,4 +87,31 @@ describe("SubtitleOverlay", () => {
 
     expect(html).toContain('aria-label="Show subtitles"');
   });
+
+  it("renders a speaker chip when a resolved speaker is provided", () => {
+    const html = renderToStaticMarkup(
+      <SubtitleOverlay
+        segment={{ segmentId: "s1", sourceText: "hi", translatedText: "你好", status: "final", speakerId: "spk-b" }}
+        fontSize={16}
+        lifecycle="live"
+        mode="pipeline"
+        speaker={{ number: 2, color: "#f6b26b" }}
+      />
+    );
+    expect(html).toContain("echoflow-speaker");
+    expect(html).toContain("Speaker 2");
+  });
+
+  it("renders no speaker chip when speaker is null", () => {
+    const html = renderToStaticMarkup(
+      <SubtitleOverlay
+        segment={{ segmentId: "s1", sourceText: "hi", translatedText: "你好", status: "final" }}
+        fontSize={16}
+        lifecycle="live"
+        mode="pipeline"
+        speaker={null}
+      />
+    );
+    expect(html).not.toContain("echoflow-speaker");
+  });
 });

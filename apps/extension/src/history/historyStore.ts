@@ -1,5 +1,6 @@
 import type { SubtitleSegment } from "@echoflow/protocol";
 import { createDexieHistoryPersistence } from "./db";
+import { assignSpeakerNumbers } from "../subtitles/speakerDisplay";
 
 export type SyncStatus = "local-only" | "pending" | "synced" | "failed";
 
@@ -157,8 +158,18 @@ export function createHistoryStore(
         persistence,
         sessionId
       );
+      const speakerNumbers = assignSpeakerNumbers(
+        segments
+          .map((s) => s.speakerId)
+          .filter((id): id is string => id !== undefined)
+      );
+      const enriched = segments.map((segment) =>
+        segment.speakerId !== undefined
+          ? { ...segment, speakerNumber: speakerNumbers.get(segment.speakerId) }
+          : segment
+      );
 
-      return JSON.stringify({ session, segments }, null, 2);
+      return JSON.stringify({ session, segments: enriched }, null, 2);
     }
   };
 }
@@ -236,16 +247,26 @@ function formatSessionText(
     ""
   ];
 
+  const speakerNumbers = assignSpeakerNumbers(
+    segments.map((s) => s.speakerId).filter((id): id is string => id !== undefined)
+  );
+  const multiSpeaker = speakerNumbers.size >= 2;
+
   segments.forEach((segment, index) => {
     if (index > 0) {
       lines.push("");
     }
 
+    const prefix =
+      multiSpeaker && segment.speakerId
+        ? `Speaker ${speakerNumbers.get(segment.speakerId)}: `
+        : "";
+
     lines.push(
       `[${formatTimestamp(segment.startTimeMs)} - ${formatTimestamp(
         segment.endTimeMs
       )}]`,
-      segment.sourceText,
+      `${prefix}${segment.sourceText}`,
       segment.translatedText
     );
   });

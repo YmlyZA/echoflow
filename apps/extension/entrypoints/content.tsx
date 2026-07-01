@@ -1,5 +1,6 @@
 import { isServerEvent } from "@echoflow/protocol";
 import type { SubtitleMode } from "@echoflow/protocol";
+import { assignSpeakerNumbers, speakerColor } from "../src/subtitles/speakerDisplay";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useReducer, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -143,6 +144,16 @@ function EchoFlowMount() {
     hasSignal
   });
 
+  let speaker: { number: number; color: string } | null = null;
+  if (subtitleState.seenSpeakerIds.length >= 2 && subtitleState.currentSegment?.speakerId) {
+    const number = assignSpeakerNumbers(subtitleState.seenSpeakerIds).get(
+      subtitleState.currentSegment.speakerId
+    );
+    if (number) {
+      speaker = { number, color: speakerColor(number) };
+    }
+  }
+
   return (
     <SubtitleOverlay
       segment={subtitleState.currentSegment}
@@ -158,6 +169,7 @@ function EchoFlowMount() {
       onDecreaseFontSize={handleDecreaseFontSize}
       onIncreaseFontSize={handleIncreaseFontSize}
       onDragStart={handleDragStart}
+      speaker={speaker}
     />
   );
 }

@@ -6,13 +6,14 @@ export type AudioFrame = {
 
 export type SegmentEvent =
   | { kind: "language"; sourceLanguage: string }
-  | { kind: "partial"; segmentId: string; text: string; startTimeMs: number }
+  | { kind: "partial"; segmentId: string; text: string; startTimeMs: number; speakerId?: string }
   | {
       kind: "final";
       segmentId: string;
       text: string;
       startTimeMs: number;
       endTimeMs: number;
+      speakerId?: string;
     };
 
 export interface SpeechRecognitionStream {

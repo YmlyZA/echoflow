@@ -9,6 +9,7 @@ export interface SubtitleDisplaySegment {
   sourceText: string;
   translatedText: string;
   status: SubtitleSegmentStatus;
+  speakerId?: string;
 }
 
 export interface TransientSubtitleError {
@@ -22,6 +23,7 @@ export interface SubtitleState {
   detectedSourceLanguage: string | null;
   targetLanguage: string | null;
   transientError: TransientSubtitleError | null;
+  seenSpeakerIds: readonly string[];
 }
 
 export function createInitialSubtitleState(): SubtitleState {
@@ -30,7 +32,8 @@ export function createInitialSubtitleState(): SubtitleState {
     finalizedSegmentIds: [],
     detectedSourceLanguage: null,
     targetLanguage: null,
-    transientError: null
+    transientError: null,
+    seenSpeakerIds: []
   };
 }
 
@@ -48,12 +51,14 @@ export function reduceSubtitleEvent(
           segmentId: event.segmentId,
           sourceText: event.sourceText,
           translatedText: event.translatedText,
-          status: "final"
+          status: "final",
+          ...(event.speakerId !== undefined ? { speakerId: event.speakerId } : {})
         },
         finalizedSegmentIds: appendFinalizedSegmentId(
           state.finalizedSegmentIds,
           event.segmentId
         ),
+        seenSpeakerIds: trackSpeaker(state.seenSpeakerIds, event.speakerId),
         transientError: null
       };
     case "language":
@@ -94,8 +99,10 @@ function reducePartialEvent(
       sourceText: event.sourceText,
       translatedText:
         event.translatedText ?? previousSegment?.translatedText ?? "",
-      status: "partial"
+      status: "partial",
+      ...(event.speakerId !== undefined ? { speakerId: event.speakerId } : {})
     },
+    seenSpeakerIds: trackSpeaker(state.seenSpeakerIds, event.speakerId),
     transientError: null
   };
 }
@@ -109,4 +116,14 @@ function appendFinalizedSegmentId(
   }
 
   return [...finalizedSegmentIds, segmentId].slice(-MAX_FINALIZED_TRACKED);
+}
+
+function trackSpeaker(
+  seen: readonly string[],
+  speakerId: string | undefined
+): readonly string[] {
+  if (speakerId === undefined || seen.includes(speakerId)) {
+    return seen;
+  }
+  return [...seen, speakerId];
 }

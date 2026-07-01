@@ -26,6 +26,7 @@ import {
 } from "../../src/settings/languageSelection";
 import { FONT_STACK, LIGHT_THEME, themeStyleSheet } from "../../src/ui/theme";
 import { SegmentedControl } from "../../src/ui/SegmentedControl";
+import { assignSpeakerNumbers } from "../../src/subtitles/speakerDisplay";
 import { LanguagePicker } from "../../src/ui/LanguagePicker";
 import { CONTROL_STYLES } from "../../src/ui/controlStyles";
 
@@ -359,6 +360,16 @@ function HistoryPanel() {
   const [sessions, setSessions] = useState<HistorySessionRecord[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState("");
   const [segments, setSegments] = useState<HistorySegmentRecord[]>([]);
+  const speakerNumbers = useMemo(
+    () =>
+      assignSpeakerNumbers(
+        segments
+          .map((s) => s.speakerId)
+          .filter((id): id is string => id !== undefined)
+      ),
+    [segments]
+  );
+  const multiSpeaker = speakerNumbers.size >= 2;
   const [exportContent, setExportContent] = useState("");
   const [exportFormat, setExportFormat] = useState<"text" | "json" | "">("");
   const [historyError, setHistoryError] = useState("");
@@ -517,6 +528,11 @@ function HistoryPanel() {
                     segments.map((segment) => (
                       <article key={segment.segmentId} className="ef-segment">
                         <span className="ef-segment-time">{formatSegmentRange(segment)}</span>
+                        {multiSpeaker && segment.speakerId ? (
+                          <span className="ef-segment-speaker">
+                            Speaker {speakerNumbers.get(segment.speakerId)}
+                          </span>
+                        ) : null}
                         <p className="ef-segment-source">{segment.sourceText}</p>
                         <p className="ef-segment-translation">{segment.translatedText}</p>
                       </article>
@@ -649,6 +665,7 @@ ${CONTROL_STYLES}
 .ef-segments { display: grid; gap: 10px; }
 .ef-segment { display: grid; gap: 4px; padding: 2px 0 2px 10px; border-left: 3px solid var(--ef-accent); }
 .ef-segment-time { font-size: 12px; color: var(--ef-text-muted); font-variant-numeric: tabular-nums; }
+.ef-segment-speaker { font-size: 12px; font-weight: 700; color: var(--ef-accent); }
 .ef-segment-source { margin: 0; font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
 .ef-segment-translation { margin: 0; font-size: 14px; color: var(--ef-text-muted); overflow-wrap: anywhere; }
 .ef-export-label { display: grid; gap: 6px; font-size: 12.5px; font-weight: 700; }
