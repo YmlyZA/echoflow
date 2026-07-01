@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the GitHub Release
+    steps:
+      - uses: actions/checkout@v4
+
+      # Install pnpm first so setup-node's pnpm cache can resolve the store.
+      # Version comes from the "packageManager" field in package.json (pnpm@10).
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Turn the tag into version fields via the same tested helper the build uses.
+      - name: Derive version from tag
+        id: ver
+        run: pnpm --filter @echoflow/extension exec tsx scripts/print-version.ts "${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+
+      # Never publish a broken build.
+      - run: pnpm typecheck
+      - run: pnpm test
+
+      - name: Build and zip the extension
+        env:
+          EF_VERSION_NAME: ${{ steps.ver.outputs.versionName }}
+        run: pnpm --filter @echoflow/extension zip
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: apps/extension/.output/echoflow-*-chrome.zip
+          prerelease: ${{ steps.ver.outputs.prerelease }}
+          generate_release_notes: true
