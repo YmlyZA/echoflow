@@ -1,4 +1,5 @@
 import {
+  isInternalSender,
   isRuntimeMessage,
   type ConnectionStatusMessage,
   type RuntimeMessage,
@@ -60,7 +61,10 @@ export default defineBackground(() => {
     console.error("EchoFlow background message handler failed", error);
   });
 
-  chrome.runtime.onMessage.addListener((message: unknown) => {
+  chrome.runtime.onMessage.addListener((message: unknown, sender) => {
+    if (!isInternalSender(sender, chrome.runtime.id)) {
+      return;
+    }
     if (!isRuntimeMessage(message)) {
       return;
     }

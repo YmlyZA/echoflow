@@ -4,6 +4,7 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import { useEffect, useReducer, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import {
+  isInternalSender,
   isRuntimeMessage,
   type StopSessionMessage
 } from "../src/messaging/messages";
@@ -38,7 +39,13 @@ function EchoFlowMount({ onSessionEnded }: { onSessionEnded: () => void }) {
   const currentSessionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    function handleRuntimeMessage(message: unknown) {
+    function handleRuntimeMessage(
+      message: unknown,
+      sender: chrome.runtime.MessageSender
+    ) {
+      if (!isInternalSender(sender, chrome.runtime.id)) {
+        return;
+      }
       if (!isRuntimeMessage(message)) {
         return;
       }

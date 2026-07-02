@@ -4,6 +4,7 @@ import { createConfig, type BackendConfigInput } from "./config.js";
 import { buildCapabilities } from "./realtime/capabilities.js";
 import { createSubtitleSourceFactory } from "./realtime/subtitleSourceFactory.js";
 import { RealtimeSession } from "./realtime/session.js";
+import { isAllowedOrigin, timingSafeKeyMatch } from "./wsAuth.js";
 
 export function createServer(input: BackendConfigInput = {}): FastifyInstance {
   const config = createConfig(input);
@@ -14,7 +15,11 @@ export function createServer(input: BackendConfigInput = {}): FastifyInstance {
   server.get("/healthz", async () => ({ ok: true }));
 
   server.get("/v1/capabilities", async (request, reply) => {
-    if (request.headers["x-api-key"] !== config.apiKey) {
+    const headerKey =
+      typeof request.headers["x-api-key"] === "string"
+        ? request.headers["x-api-key"]
+        : undefined;
+    if (!timingSafeKeyMatch(headerKey, config.apiKey)) {
       return reply.code(401).send({ error: "Unauthorized" });
     }
     return buildCapabilities(config.providers);
@@ -26,6 +31,18 @@ export function createServer(input: BackendConfigInput = {}): FastifyInstance {
       {
         websocket: true,
         preValidation: async (request, reply) => {
+          const origin =
+            typeof request.headers.origin === "string"
+              ? request.headers.origin
+              : undefined;
+          if (!isAllowedOrigin(origin)) {
+            return reply.code(403).send({ error: "Forbidden origin" });
+          }
+
+          const headerKey =
+            typeof request.headers["x-api-key"] === "string"
+              ? request.headers["x-api-key"]
+              : undefined;
           const queryApiKey =
             typeof request.query === "object" &&
             request.query !== null &&
@@ -35,8 +52,8 @@ export function createServer(input: BackendConfigInput = {}): FastifyInstance {
               : undefined;
 
           if (
-            request.headers["x-api-key"] !== config.apiKey &&
-            queryApiKey !== config.apiKey
+            !timingSafeKeyMatch(headerKey, config.apiKey) &&
+            !timingSafeKeyMatch(queryApiKey, config.apiKey)
           ) {
             return reply.code(401).send({ error: "Unauthorized" });
           }

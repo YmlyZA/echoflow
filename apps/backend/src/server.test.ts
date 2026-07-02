@@ -172,6 +172,34 @@ describe("backend realtime websocket", () => {
     }
   });
 
+  it("rejects a websocket handshake from a web page origin", async () => {
+    const server = createServer({ apiKey: "dev-key" });
+    try {
+      await server.ready();
+      await expect(
+        server.injectWS("/v1/realtime", {
+          headers: { "x-api-key": "dev-key", origin: "https://evil.example" },
+        }),
+      ).rejects.toThrow("Unexpected server response: 403");
+    } finally {
+      await server.close();
+    }
+  });
+
+  it("accepts a websocket handshake from a chrome extension origin", async () => {
+    const server = createServer({ apiKey: "dev-key" });
+    try {
+      await server.ready();
+      const socket = await server.injectWS("/v1/realtime", {
+        headers: { "x-api-key": "dev-key", origin: "chrome-extension://abcdefghijklmnop" },
+      });
+      openSockets.push(socket);
+      expect(socket).toBeDefined();
+    } finally {
+      await server.close();
+    }
+  });
+
   it("sends a protocol error for malformed client messages", async () => {
     const server = createServer({ apiKey: "dev-key" });
 
