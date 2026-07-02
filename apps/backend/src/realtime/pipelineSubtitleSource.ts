@@ -58,7 +58,29 @@ export class PipelineSubtitleSource implements SubtitleSource {
               targetLanguage,
             });
           } catch (error: unknown) {
-            opts.onError?.(toError(error));
+            if (closed) {
+              return;
+            }
+            // Translation failed transiently. Do NOT kill the session (that is
+            // what opts.onError does). If this segment is still current, surface
+            // the source text with an empty translation so the line and history
+            // stay complete, plus a non-fatal error event.
+            if (job.segmentId === latestSegmentId) {
+              opts.onEvent({
+                type: "final",
+                segmentId: job.segmentId,
+                sourceText: job.sourceText,
+                translatedText: "",
+                startTimeMs: job.startTimeMs,
+                endTimeMs: job.endTimeMs,
+                ...(job.speakerId !== undefined ? { speakerId: job.speakerId } : {}),
+              });
+              opts.onEvent({
+                type: "error",
+                code: "translation_failed",
+                message: toError(error).message,
+              });
+            }
             continue;
           }
           if (closed) {

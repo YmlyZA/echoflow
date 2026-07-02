@@ -111,6 +111,39 @@ describe("PipelineSubtitleSource", () => {
     );
   });
 
+  it("keeps the session alive and emits a source-only final when translation fails", async () => {
+    const speech = stubSpeech();
+    const onError = vi.fn();
+    const translation: TranslationProvider = {
+      translate: vi.fn(async () => {
+        throw new Error("HTTP 500");
+      }),
+      close: vi.fn(),
+    };
+    const events: ServerEvent[] = [];
+    const source = new PipelineSubtitleSource(speech.provider, translation, "zh-CN");
+    const stream = source.open({ onEvent: (event) => events.push(event), onError });
+
+    speech.emit({ kind: "final", segmentId: "seg-1", text: "hello", startTimeMs: 0, endTimeMs: 500 });
+    await stream.end();
+
+    // final is still delivered (source text, empty translation) so the line + history survive
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "final",
+        segmentId: "seg-1",
+        sourceText: "hello",
+        translatedText: "",
+      }),
+    );
+    // a non-fatal error event is surfaced
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "error", code: "translation_failed" }),
+    );
+    // the session is NOT killed
+    expect(onError).not.toHaveBeenCalled();
+  });
+
   it("emits a translated final and drops a stale one (latest-wins)", async () => {
     const speech = stubSpeech();
     let resolveFirst: (value: string) => void = () => {};
