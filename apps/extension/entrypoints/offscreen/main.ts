@@ -10,6 +10,7 @@ import { OffscreenAudioPipeline } from "../../src/audio/audioPipeline";
 import { RealtimeClient } from "../../src/realtime/realtimeClient";
 import { CANONICAL_PCM_AUDIO_FORMAT } from "@echoflow/protocol";
 import { buildRealtimeWebSocketUrl } from "../../src/settings/settings";
+import { createSerialQueue } from "../../src/messaging/serialQueue";
 
 chrome.runtime.sendMessage({ type: "OFFSCREEN_READY" });
 
@@ -18,13 +19,17 @@ let activeSession: {
   pipeline: OffscreenAudioPipeline;
 } | undefined;
 
+const enqueueMessage = createSerialQueue((error) => {
+  console.error("EchoFlow offscreen message handler failed", error);
+});
+
 chrome.runtime.onMessage.addListener((message: unknown) => {
   if (!isRuntimeMessage(message)) {
     return;
   }
 
   if (message.type === "START_SESSION") {
-    void startSession(message);
+    enqueueMessage(() => startSession(message));
     return;
   }
 
@@ -37,7 +42,7 @@ chrome.runtime.onMessage.addListener((message: unknown) => {
       return;
     }
 
-    void stopActiveSession(message.reason ?? "stop_session");
+    enqueueMessage(() => stopActiveSession(message.reason ?? "stop_session"));
     return;
   }
 });
@@ -45,6 +50,7 @@ chrome.runtime.onMessage.addListener((message: unknown) => {
 async function startSession(message: StartSessionMessage): Promise<void> {
   await stopActiveSession("replaced_by_new_session");
 
+  let pipeline: OffscreenAudioPipeline | undefined;
   try {
     const tab = await getTabMetadata(message.tabId);
     const client = new RealtimeClient({
@@ -85,7 +91,7 @@ async function startSession(message: StartSessionMessage): Promise<void> {
         } satisfies ConnectionStatusMessage);
       }
     });
-    const pipeline = new OffscreenAudioPipeline({
+    pipeline = new OffscreenAudioPipeline({
       streamId: message.streamId,
       client,
       workletModuleUrl: chrome.runtime.getURL("pcm-encoder.worklet.js")
@@ -104,7 +110,15 @@ async function startSession(message: StartSessionMessage): Promise<void> {
       localSessionId: message.localSessionId
     } satisfies SessionStartedMessage);
   } catch (error) {
-    await stopActiveSession("start_failed");
+    if (activeSession?.localSessionId === message.localSessionId) {
+      // This invocation still owns the active session — full teardown.
+      await stopActiveSession("start_failed");
+    } else if (pipeline) {
+      // A newer session replaced us mid-await; only clean up what we created,
+      // leaving the current activeSession intact.
+      await pipeline.stop("start_failed_superseded");
+    }
+
     await chrome.runtime.sendMessage({
       type: "SESSION_ERROR",
       localSessionId: message.localSessionId,
