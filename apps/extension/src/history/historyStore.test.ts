@@ -57,6 +57,16 @@ describe("history store", () => {
     ]);
   });
 
+  it("generates distinct ids for calls in the same millisecond", async () => {
+    const a = await store.createLocalSession({ now: () => 42 });
+    const b = await store.createLocalSession({ now: () => 42 });
+
+    expect(a.id).not.toBe(b.id);
+    expect(a.startedAt).toBe(42);
+    expect(b.startedAt).toBe(42);
+    expect(a.id.startsWith("local-42-")).toBe(true);
+  });
+
   it("records errors in session metadata", async () => {
     const session = await store.createLocalSession({ now: () => 20 });
 
@@ -81,6 +91,7 @@ describe("history store", () => {
   it("exports a session as text", async () => {
     const session = await store.createLocalSession({
       now: () => 30,
+      randomSuffix: () => "s",
       sourceLanguage: "en",
       targetLanguage: "zh-CN"
     });
@@ -108,7 +119,7 @@ describe("history store", () => {
     await expect(store.exportSessionAsText(session.id)).resolves.toBe(
       [
         "EchoFlow transcript",
-        "Session: local-30",
+        "Session: local-30-s",
         "Languages: en -> zh-CN",
         "",
         "[00:00.000 - 00:00.900]",
