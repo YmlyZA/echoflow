@@ -80,6 +80,10 @@ async function startSession(message: StartSessionMessage): Promise<void> {
         } satisfies SessionErrorMessage);
 
         if (error.code === "connection_lost") {
+          // Not routed through the serial queue, unlike START/STOP messages.
+          // Safe because stopActiveSession reads-and-clears activeSession
+          // synchronously, so it can never tear down a different session than
+          // the one this client belongs to.
           void stopActiveSession("connection_lost");
         }
       },
@@ -114,7 +118,8 @@ async function startSession(message: StartSessionMessage): Promise<void> {
       // This invocation still owns the active session — full teardown.
       await stopActiveSession("start_failed");
     } else if (pipeline) {
-      // A newer session replaced us mid-await; only clean up what we created,
+      // We no longer own activeSession (the onError handler already tore it
+      // down, or a later session took over) — only clean up what we created,
       // leaving the current activeSession intact.
       await pipeline.stop("start_failed_superseded");
     }
