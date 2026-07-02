@@ -7,7 +7,7 @@ import type { VolcengineUtterance } from "./volcengineAsrProtocol.js";
 // utterance, keyed on our own monotonic ordinal. Partials are ignored.
 export class UtteranceReconciler {
   private ordinal = 0;
-  private lastFinalText = "";
+  private lastEmittedStartTime = -1;
 
   reconcile(utterances: VolcengineUtterance[]): SegmentEvent[] {
     const events: SegmentEvent[] = [];
@@ -17,13 +17,16 @@ export class UtteranceReconciler {
         continue;
       }
       const text = utterance.text ?? "";
-      if (text === "" || text === this.lastFinalText) {
+      const startTimeMs = utterance.start_time ?? 0;
+      // Dedupe by utterance boundary: SeedASR re-sends a confirmed sentence with
+      // the same start_time, but a genuinely repeated sentence is a later VAD
+      // segment with a later start_time — so a verbatim repeat still surfaces.
+      if (text === "" || startTimeMs <= this.lastEmittedStartTime) {
         continue;
       }
 
-      this.lastFinalText = text;
+      this.lastEmittedStartTime = startTimeMs;
       this.ordinal += 1;
-      const startTimeMs = utterance.start_time ?? 0;
       events.push({
         kind: "final",
         segmentId: `seg-${this.ordinal}`,

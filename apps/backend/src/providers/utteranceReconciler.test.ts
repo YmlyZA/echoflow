@@ -69,4 +69,14 @@ describe("UtteranceReconciler (finalized sentences only)", () => {
       { kind: "final", segmentId: "seg-1", text: "x", startTimeMs: 200, endTimeMs: 200 },
     ]);
   });
+
+  it("emits a second final when the same text is spoken again at a later time", () => {
+    const r = new UtteranceReconciler();
+    r.reconcile([{ text: "好的。", definite: true, start_time: 0, end_time: 500 }]);
+    expect(
+      r.reconcile([{ text: "好的。", definite: true, start_time: 600, end_time: 1100 }]),
+    ).toEqual([
+      { kind: "final", segmentId: "seg-2", text: "好的。", startTimeMs: 600, endTimeMs: 1100 },
+    ]);
+  });
 });
