@@ -40,13 +40,16 @@ class FakeSocket {
 function stubSource(): {
   source: SubtitleSource;
   emit: (e: ServerEvent) => void;
+  error: (e: Error) => void;
   ended: () => boolean;
 } {
   let onEvent: ((e: ServerEvent) => void) | undefined;
+  let onError: ((e: Error) => void) | undefined;
   let ended = false;
   const source: SubtitleSource = {
     open: (opts) => {
       onEvent = opts.onEvent;
+      onError = opts.onError;
       return {
         pushFrame: () => {},
         end: async () => {
@@ -56,7 +59,12 @@ function stubSource(): {
       };
     },
   };
-  return { source, emit: (e) => onEvent?.(e), ended: () => ended };
+  return {
+    source,
+    emit: (e) => onEvent?.(e),
+    error: (e) => onError?.(e),
+    ended: () => ended,
+  };
 }
 
 function startMessage(mode?: string, sourceLanguage?: string): string {
@@ -104,6 +112,28 @@ describe("RealtimeSession", () => {
         expect.objectContaining({ type: "partial", segmentId: "seg-1", sourceText: "hello" }),
       );
     });
+  });
+
+  it("closes the socket when a runtime provider-stream error occurs", async () => {
+    const socket = new FakeSocket();
+    const stub = stubSource();
+    const factory: SubtitleSourceFactory = () => stub.source;
+
+    const session = new RealtimeSession({
+      socket: socket as never,
+      createSubtitleSource: factory,
+      defaultTargetLanguage: "zh-CN",
+    });
+    session.start();
+    socket.emit("message", startMessage(), false);
+
+    stub.error(new Error("upstream ASR died"));
+    await flush();
+
+    expect(socket.events()).toContainEqual(
+      expect.objectContaining({ type: "error", code: "provider_error" }),
+    );
+    expect(socket.readyState).toBe(3); // socket closed, not left half-open
   });
 
   it("sends mode_unavailable error and does NOT close the socket when factory throws ModeUnavailableError", () => {

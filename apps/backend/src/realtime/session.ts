@@ -143,7 +143,12 @@ export class RealtimeSession {
       },
       onError: (error) => {
         this.sendError("provider_error", error.message);
-        void this.close();
+        // A mid-session provider-stream failure is terminal: tear down and close
+        // the client socket so it stops streaming audio into a dead session.
+        // (Factory-open errors above intentionally leave the socket open.)
+        void this.close().then(() => {
+          this.options.socket.close();
+        });
       },
     });
   }
