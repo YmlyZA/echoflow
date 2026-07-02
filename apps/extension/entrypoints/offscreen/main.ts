@@ -98,7 +98,16 @@ async function startSession(message: StartSessionMessage): Promise<void> {
     pipeline = new OffscreenAudioPipeline({
       streamId: message.streamId,
       client,
-      workletModuleUrl: chrome.runtime.getURL("pcm-encoder.worklet.js")
+      workletModuleUrl: chrome.runtime.getURL("pcm-encoder.worklet.js"),
+      onCaptureEnded: (reason) => {
+        void chrome.runtime.sendMessage({
+          type: "SESSION_ERROR",
+          localSessionId: message.localSessionId,
+          code: "capture_ended",
+          message: "Tab audio capture ended"
+        } satisfies SessionErrorMessage);
+        void stopActiveSession(reason);
+      }
     });
 
     activeSession = {

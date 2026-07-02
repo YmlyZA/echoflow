@@ -4,6 +4,7 @@ import {
   type RuntimeMessage,
   type SessionErrorMessage,
   type SessionStartedMessage,
+  type SessionStoppedMessage,
   type ServerEventMessage,
   type StartFromPopupMessage,
   type StartSessionMessage,
@@ -65,6 +66,34 @@ export default defineBackground(() => {
     }
 
     enqueueMessage(() => handleRuntimeMessage(message));
+  });
+
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    enqueueMessage(async () => {
+      await ensureStateLoaded();
+      if (
+        sessionState.status !== "idle" &&
+        sessionState.tabId === tabId
+      ) {
+        await stopSession("tab_closed");
+      }
+    });
+  });
+
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (changeInfo.status !== "loading") {
+      return;
+    }
+
+    enqueueMessage(async () => {
+      await ensureStateLoaded();
+      if (
+        sessionState.status !== "idle" &&
+        sessionState.tabId === tabId
+      ) {
+        await stopSession("tab_navigated");
+      }
+    });
   });
 });
 
@@ -138,6 +167,8 @@ async function stopSession(reason: string): Promise<void> {
   }
 
   const localSessionId = sessionState.localSessionId;
+  const tabId = sessionState.tabId;
+
   await commitSessionState(
     reduceSessionState(sessionState, { type: "STOP_REQUESTED" })
   );
@@ -152,6 +183,22 @@ async function stopSession(reason: string): Promise<void> {
   await commitSessionState(
     reduceSessionState(sessionState, { type: "STOP_COMPLETED" })
   );
+
+  await notifyTabSessionStopped(tabId, localSessionId);
+}
+
+async function notifyTabSessionStopped(
+  tabId: number,
+  localSessionId: string
+): Promise<void> {
+  try {
+    await chrome.tabs.sendMessage(tabId, {
+      type: "SESSION_STOPPED",
+      localSessionId
+    } satisfies SessionStoppedMessage);
+  } catch {
+    // Tab was closed or navigated away — nothing to tear down there.
+  }
 }
 
 async function handleRuntimeMessage(message: RuntimeMessage): Promise<void> {
