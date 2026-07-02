@@ -30,7 +30,7 @@ const serverUrl =
 const apiKey = process.env.ECHOFLOW_E2E_API_KEY ?? "dev-key";
 
 test.describe("extension fake backend smoke", () => {
-  // Skipped: two blockers prevent this test from running headlessly.
+  // Two known gaps remain even though this test now runs headlessly:
   //
   // 1. The popup's Start gesture (chrome.tabCapture.getMediaStreamId) requires
   //    a real user gesture and cannot be synthesised in headless Playwright.
@@ -38,20 +38,19 @@ test.describe("extension fake backend smoke", () => {
   //    directly onto the runtime message bus, so the background creates a local
   //    history session that waitForStartFromPopupBoundary can observe.
   //
-  // 2. bridgeFakeBackendEvents opens a WebSocket to the fake backend from
-  //    within serviceWorker.evaluate(), but headless Chromium's extension
+  // 2. bridgeFakeBackendEvents opens the WebSocket to the fake backend in the
+  //    Node/Playwright test process (not inside serviceWorker.evaluate()) and
+  //    injects each received ServerEvent into the extension via
+  //    chrome.runtime.onMessage.dispatch. Headless Chromium's extension
   //    service-worker context cannot establish outbound TCP connections to
-  //    127.0.0.1 via the CDP-executed path — the backend receives no connection
-  //    and the 10-second timeout fires.  The same call succeeds from Node.js
-  //    and from headed-mode browser pages, so this is a Playwright headless /
-  //    service-worker restriction, not a backend or extension bug.
+  //    127.0.0.1 via the CDP-executed path, but the Node process can, so this
+  //    sidesteps that restriction. Node here substitutes for the offscreen
+  //    document's real WebSocket client — the real tabCapture gesture and the
+  //    offscreen AudioWorklet/PCM pipeline are still not exercised headlessly.
   //
-  // Both blockers are tracked as Direction D in docs/superpowers/backlog.md
-  // ("Automated e2e … blocker: tabCapture needs a real user gesture").
+  // See Direction D in docs/superpowers/backlog.md for background.
   // Run `bash scripts/dev-smoke.sh` for a headed integration smoke.
   test("streams fake backend subtitles into overlay and local history", async () => {
-    test.skip(true, "headless service-worker WS connectivity blocker — see Direction D in docs/superpowers/backlog.md");
-
     execFileSync("pnpm", ["--filter", "@echoflow/extension", "build"], {
       cwd: repoRoot,
       stdio: "inherit",
@@ -282,94 +281,98 @@ async function bridgeFakeBackendEvents(
   serviceWorker: Awaited<ReturnType<typeof waitForServiceWorker>>,
   localSessionId: string,
 ): Promise<void> {
-  await serviceWorker.evaluate(
-    async ({ apiKey, localSessionId, serverUrl }) => {
-      await new Promise<void>((resolve, reject) => {
-        const websocketUrl = new URL(serverUrl);
+  const websocketUrl = new URL(serverUrl);
+  websocketUrl.protocol = websocketUrl.protocol === "https:" ? "wss:" : "ws:";
+  websocketUrl.pathname = "/v1/realtime";
+  websocketUrl.search = "";
+  websocketUrl.searchParams.set("apiKey", apiKey);
 
-        websocketUrl.protocol =
-          websocketUrl.protocol === "https:" ? "wss:" : "ws:";
-        websocketUrl.pathname = "/v1/realtime";
-        websocketUrl.search = "";
-        websocketUrl.searchParams.set("apiKey", apiKey);
+  await new Promise<void>((resolve, reject) => {
+    // Node 22 global WebSocket — the Playwright process CAN reach 127.0.0.1
+    // (headless extension service workers cannot; that was the old blocker).
+    const socket = new WebSocket(websocketUrl);
+    const timeout = setTimeout(() => {
+      socket.close();
+      reject(new Error("Timed out waiting for fake backend final event"));
+    }, 10_000);
 
-        const socket = new WebSocket(websocketUrl);
-        const timeout = setTimeout(() => {
-          socket.close();
-          reject(new Error("Timed out waiting for fake backend final event"));
-        }, 10_000);
+    socket.onerror = () => {
+      clearTimeout(timeout);
+      reject(new Error("Fake backend websocket failed"));
+    };
 
-        socket.onerror = () => {
-          clearTimeout(timeout);
-          reject(new Error("Fake backend websocket failed"));
-        };
+    socket.onopen = () => {
+      socket.send(
+        JSON.stringify({
+          type: "start",
+          sessionId: localSessionId,
+          tabTitle: "EchoFlow smoke fixture",
+          tabUrl: "http://127.0.0.1/test-video.html",
+          targetLanguage: "zh-CN",
+          audioFormat: {
+            mimeType: "audio/pcm",
+            codec: "pcm_s16le",
+            sampleRateHz: 16000,
+            channelCount: 1,
+            bitsPerSample: 16,
+          },
+          clientCapabilities: {
+            binaryAudioFrames: true,
+            partialSubtitles: true,
+            finalSubtitles: true,
+            languageEvents: true,
+            errorEvents: true,
+          },
+        }),
+      );
+      // Fake provider emits one script step per frame; exactly 3 frames drive
+      // segment 1 to its final (language+partial, partial, final). Do NOT pump a
+      // 4th — it advances the script to segment 2, and the pipeline's latest-wins
+      // translation worker would then drop segment 1's still-in-flight final as
+      // stale (segmentId !== latestSegmentId). The PCM bytes are ignored.
+      const silentPcmFrame = new ArrayBuffer(320);
+      for (let sequenceNumber = 0; sequenceNumber < 3; sequenceNumber += 1) {
+        socket.send(
+          JSON.stringify({
+            type: "audio_frame",
+            sessionId: localSessionId,
+            frame: { sequenceNumber, timestampMs: sequenceNumber * 100 },
+          }),
+        );
+        socket.send(silentPcmFrame);
+      }
+    };
 
-        socket.onopen = () => {
-          socket.send(
-            JSON.stringify({
-              type: "start",
-              sessionId: localSessionId,
-              tabTitle: "EchoFlow smoke fixture",
-              tabUrl: "http://127.0.0.1/test-video.html",
-              targetLanguage: "zh-CN",
-              audioFormat: {
-                mimeType: "audio/pcm",
-                codec: "pcm_s16le",
-                sampleRateHz: 16000,
-                channelCount: 1,
-                bitsPerSample: 16,
-              },
-              clientCapabilities: {
-                binaryAudioFrames: true,
-                partialSubtitles: true,
-                finalSubtitles: true,
-                languageEvents: true,
-                errorEvents: true,
-              },
-            }),
-          );
-          // The streaming fake speech provider emits one script step per audio
-          // frame; pump a few so it reaches segment 1's final ("hello from
-          // echoflow" is 3 words -> partial, partial, final). The PCM bytes are
-          // ignored by the fake provider, so a zero-filled buffer is fine.
-          const silentPcmFrame = new ArrayBuffer(320);
-          for (let sequenceNumber = 0; sequenceNumber < 4; sequenceNumber += 1) {
-            socket.send(
-              JSON.stringify({
-                type: "audio_frame",
-                sessionId: localSessionId,
-                frame: { sequenceNumber, timestampMs: sequenceNumber * 100 },
-              }),
-            );
-            socket.send(silentPcmFrame);
-          }
-        };
+    socket.onmessage = (message) => {
+      void (async () => {
+        const event = JSON.parse(String(message.data));
 
-        socket.onmessage = (message) => {
-          void (async () => {
-            const event = JSON.parse(String(message.data));
-
+        // Inject the parsed ServerEvent into the extension the same way the
+        // test injects START_FROM_POPUP — the background then forwards it to
+        // the content script and records finals to history.
+        await serviceWorker.evaluate(
+          ({ localSessionId, event }) => {
             chrome.runtime.onMessage.dispatch({
               type: "SERVER_EVENT",
               localSessionId,
               event,
             });
+          },
+          { localSessionId, event },
+        );
 
-            if (event.type === "final") {
-              clearTimeout(timeout);
-              socket.close();
-              resolve();
-            }
-          })().catch((error: unknown) => {
-            clearTimeout(timeout);
-            socket.close();
-            reject(error);
-          });
-        };
+        if (event.type === "final") {
+          clearTimeout(timeout);
+          socket.close();
+          resolve();
+        }
+      })().catch((error: unknown) => {
+        clearTimeout(timeout);
+        socket.close();
+        reject(error);
       });
-    },
-    { apiKey, localSessionId, serverUrl },
-  );
+    };
+  });
 }
 
 async function expectOverlayText(page: Page, expectedText: string): Promise<void> {
