@@ -95,6 +95,43 @@ describe("backend realtime websocket", () => {
     }
   });
 
+  it("closes the socket cleanly when the client sends stop", async () => {
+    const server = createServer({ apiKey: "dev-key" });
+
+    try {
+      await server.ready();
+      const socket = await server.injectWS("/v1/realtime", {
+        headers: { "x-api-key": "dev-key" },
+      });
+      openSockets.push(socket);
+
+      const events = collectServerEvents(socket, 4);
+      socket.send(JSON.stringify({ type: "start", targetLanguage: "zh-CN" }));
+      sendAudioFrame(socket, 0, 0);
+      sendAudioFrame(socket, 1, 250);
+      sendAudioFrame(socket, 2, 500);
+      await events; // reached the final for seg-1
+
+      const closed = new Promise<number>((resolve, reject) => {
+        const timer = setTimeout(
+          () => reject(new Error("socket did not close after stop")),
+          1_000,
+        );
+        socket.on("close", (code) => {
+          clearTimeout(timer);
+          resolve(code);
+        });
+      });
+
+      socket.send(JSON.stringify({ type: "stop" }));
+
+      const code = await closed;
+      expect(code).not.toBe(1006); // clean close (not an abnormal 1006)
+    } finally {
+      await server.close();
+    }
+  });
+
   it("rejects missing and wrong api keys before websocket work starts", async () => {
     const server = createServer({ apiKey: "dev-key" });
 
