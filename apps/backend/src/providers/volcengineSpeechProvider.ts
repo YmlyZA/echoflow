@@ -79,7 +79,14 @@ export class VolcengineSpeechProvider implements SpeechProvider {
     const reconnectOpts: ReconnectOptions = {
       onMessage: handleMessage,
       onError: (error) => { if (!closed) opts.onError?.(error); },
-      initialize: (t) => t.send(configFrame),
+      initialize: (t) => {
+        // Each connection numbers audio from scratch: config is sequence 1, so
+        // the first audio frame is 2. Without this, a reconnect keeps the prior
+        // connection's counter (advanced even by frames dropped mid-reconnect),
+        // producing a mis-sequenced stream the server rejects.
+        sequence = 1;
+        t.send(configFrame);
+      },
       onStatus: (state) => opts.onStatus?.(state),
     };
     if (this.deps.setTimer !== undefined) reconnectOpts.setTimer = this.deps.setTimer;

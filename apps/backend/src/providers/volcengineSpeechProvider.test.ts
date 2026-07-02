@@ -1,6 +1,7 @@
 import { gunzipSync, gzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import type { SegmentEvent } from "./types.js";
+import { encodeAudioRequest } from "./volcengineAsrProtocol.js";
 import { VolcengineSpeechProvider } from "./volcengineSpeechProvider.js";
 import type {
   VolcengineAsrTransportCallbacks,
@@ -163,6 +164,38 @@ describe("VolcengineSpeechProvider", () => {
     expect(statuses).toEqual(["reconnecting"]);
     fireTimer();
     expect(sockets[1]!.sent).toHaveLength(1);      // config re-sent on reconnect
+  });
+
+  it("resets the audio sequence to 2 on the reconnected stream", () => {
+    const sockets: Array<{ cb: any; sent: Buffer[] }> = [];
+    const connect = (_opts: any, cb: any) => {
+      const s = { cb, sent: [] as Buffer[] };
+      sockets.push(s);
+      return { send: (d: Buffer) => s.sent.push(d), close: () => {} };
+    };
+    let fireTimer: () => void = () => {};
+    const provider = new VolcengineSpeechProvider(CONFIG, connect, {
+      setTimer: (fn) => { fireTimer = fn; },
+    });
+    const stream = provider.open({ onSegment: () => {} });
+
+    // Connection 0 starts "live"; advance the sequence counter across two frames.
+    sockets[0]!.cb.onMessage(serverResponse({ result: { utterances: [] } }));
+    const audio = Buffer.from([1, 2, 3, 4]);
+    stream.pushFrame({ data: audio, sequenceNumber: 0, timestampMs: 0 }); // seq 2 on conn 0
+    stream.pushFrame({ data: audio, sequenceNumber: 1, timestampMs: 100 }); // seq 3 on conn 0
+
+    // Drop and reconnect.
+    sockets[0]!.cb.onClose(1006, "abnormal");
+    fireTimer();
+    // The new connection starts "reconnecting"; the first message flips it live.
+    sockets[1]!.cb.onMessage(serverResponse({ result: { utterances: [] } }));
+
+    // First audio frame after reconnect must be sequence 2, not a continued value.
+    stream.pushFrame({ data: audio, sequenceNumber: 2, timestampMs: 200 });
+
+    const audioFramesOnConn1 = sockets[1]!.sent.slice(1); // index 0 is the re-sent config frame
+    expect(audioFramesOnConn1[0]).toEqual(encodeAudioRequest(audio, 2, false));
   });
 
   it("stops sending audio during the drain window and after end()", async () => {
