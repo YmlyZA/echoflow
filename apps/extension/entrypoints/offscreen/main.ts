@@ -1,4 +1,5 @@
 import {
+  isInternalSender,
   isRuntimeMessage,
   type ConnectionStatusMessage,
   type ServerEventMessage,
@@ -23,7 +24,10 @@ const enqueueMessage = createSerialQueue((error) => {
   console.error("EchoFlow offscreen message handler failed", error);
 });
 
-chrome.runtime.onMessage.addListener((message: unknown) => {
+chrome.runtime.onMessage.addListener((message: unknown, sender) => {
+  if (!isInternalSender(sender, chrome.runtime.id)) {
+    return;
+  }
   if (!isRuntimeMessage(message)) {
     return;
   }

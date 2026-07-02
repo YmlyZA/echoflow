@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isRuntimeMessage } from "./messages";
+import { isInternalSender, isRuntimeMessage } from "./messages";
 
 describe("isRuntimeMessage", () => {
   it("accepts CONNECTION_STATUS messages", () => {
@@ -38,5 +38,13 @@ describe("isRuntimeMessage", () => {
 
   it("rejects unknown message types", () => {
     expect(isRuntimeMessage({ type: "NOPE" })).toBe(false);
+  });
+});
+
+describe("isInternalSender", () => {
+  it("accepts a sender that is this extension and rejects others", () => {
+    expect(isInternalSender({ id: "ext-1" }, "ext-1")).toBe(true);
+    expect(isInternalSender({ id: "other-ext" }, "ext-1")).toBe(false);
+    expect(isInternalSender({}, "ext-1")).toBe(false);
   });
 });

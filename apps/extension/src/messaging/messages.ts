@@ -89,3 +89,10 @@ export function isRuntimeMessage(message: unknown): message is RuntimeMessage {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
+
+export function isInternalSender(
+  sender: { id?: string },
+  runtimeId: string
+): boolean {
+  return sender.id === runtimeId;
+}
