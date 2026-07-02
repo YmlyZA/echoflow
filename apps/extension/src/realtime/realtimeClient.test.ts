@@ -328,6 +328,40 @@ describe("RealtimeClient reconnect", () => {
       }),
     ).not.toThrow();
   });
+
+  it("opens no further socket when stopped during a connect retry", async () => {
+    vi.useFakeTimers();
+    try {
+      const onError = vi.fn();
+      const client = createClient({ onError });
+      const connecting = client.connect();
+
+      // First attempt fails to open (connection refused before open).
+      FakeWebSocket.instances[0].remoteClose();
+      client.stop();
+
+      await vi.advanceTimersByTimeAsync(1000);
+      await connecting;
+
+      expect(FakeWebSocket.instances).toHaveLength(1); // no retry socket
+      expect(onError).not.toHaveBeenCalled(); // stop is not a failure
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not send start if stopped before the socket opens", async () => {
+    const client = createClient();
+    const connecting = client.connect();
+
+    client.stop(); // stop lands while the socket is still CONNECTING
+    FakeWebSocket.instances[0].open(); // late open fires afterwards
+
+    await connecting;
+
+    expect(FakeWebSocket.instances[0].sentText).toHaveLength(0); // no "start"
+    expect(FakeWebSocket.instances[0].readyState).toBe(3); // closed
+  });
 });
 
 describe("withEpochSegmentId", () => {

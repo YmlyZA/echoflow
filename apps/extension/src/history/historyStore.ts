@@ -34,6 +34,7 @@ export interface CreateLocalSessionInput {
   remoteSessionId?: string;
   syncStatus?: SyncStatus;
   now?: () => number;
+  randomSuffix?: () => string;
 }
 
 export interface RecordSessionErrorInput {
@@ -80,8 +81,9 @@ export function createHistoryStore(
   return {
     async createLocalSession(input = {}) {
       const timestamp = input.startedAt ?? input.now?.() ?? Date.now();
+      const suffix = (input.randomSuffix ?? (() => crypto.randomUUID()))();
       const session: HistorySessionRecord = {
-        id: `local-${timestamp}`,
+        id: `local-${timestamp}-${suffix}`,
         startedAt: timestamp,
         updatedAt: timestamp,
         syncStatus: input.syncStatus ?? "local-only"

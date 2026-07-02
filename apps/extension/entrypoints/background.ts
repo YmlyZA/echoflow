@@ -18,6 +18,8 @@ import {
   type SessionState
 } from "../src/session/sessionState";
 import { loadPersistedState, persistState } from "../src/session/sessionStore";
+import { createSerialQueue } from "../src/messaging/serialQueue";
+import { isMessageForActiveSession } from "../src/session/activeSession";
 
 const OFFSCREEN_DOCUMENT_PATH = "offscreen.html";
 const CONTENT_SCRIPT_PATH = "content-scripts/content.js";
@@ -53,12 +55,16 @@ export default defineBackground(() => {
     }
   });
 
+  const enqueueMessage = createSerialQueue((error) => {
+    console.error("EchoFlow background message handler failed", error);
+  });
+
   chrome.runtime.onMessage.addListener((message: unknown) => {
     if (!isRuntimeMessage(message)) {
       return;
     }
 
-    void handleRuntimeMessage(message);
+    enqueueMessage(() => handleRuntimeMessage(message));
   });
 });
 
@@ -197,14 +203,25 @@ async function handleSessionStarted(
 }
 
 async function handleSessionError(message: SessionErrorMessage): Promise<void> {
+  // A late error from a session that has since been replaced must not corrupt
+  // the current session's state/badge/UI — record its own history and return.
+  if (
+    message.localSessionId &&
+    sessionState.status !== "idle" &&
+    !isMessageForActiveSession(sessionState, message.localSessionId)
+  ) {
+    await historyStore.recordSessionError(message.localSessionId, {
+      code: message.code,
+      message: message.message
+    });
+    return;
+  }
+
   if (sessionState.status !== "idle") {
     await commitSessionState(
       reduceSessionState(sessionState, {
         type: "SESSION_ERROR",
-        error: {
-          code: message.code,
-          message: message.message
-        }
+        error: { code: message.code, message: message.message }
       })
     );
   }
@@ -293,11 +310,23 @@ async function ensureOffscreenDocument(): Promise<void> {
     return;
   }
 
-  await chrome.offscreen.createDocument({
-    url: OFFSCREEN_DOCUMENT_PATH,
-    reasons: ["USER_MEDIA"],
-    justification: "Capture tab audio for realtime subtitles."
-  });
+  try {
+    await chrome.offscreen.createDocument({
+      url: OFFSCREEN_DOCUMENT_PATH,
+      reasons: ["USER_MEDIA"],
+      justification: "Capture tab audio for realtime subtitles."
+    });
+  } catch (error) {
+    // Serialization (the background message queue) makes concurrent creation
+    // unreachable, but if the document already exists the goal is met — Chrome
+    // rejects a second createDocument with this specific message.
+    const alreadyExists =
+      error instanceof Error &&
+      error.message.includes("Only a single offscreen document");
+    if (!alreadyExists) {
+      throw error;
+    }
+  }
 }
 
 async function sendMessageToTab(

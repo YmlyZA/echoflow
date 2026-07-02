@@ -77,10 +77,20 @@ export class RealtimeClient {
       this.options.maxConnectionAttempts ?? DEFAULT_MAX_CONNECTION_ATTEMPTS;
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      if (this.stopped) {
+        return;
+      }
+
       try {
         await this.openSocket();
         return;
       } catch (error) {
+        if (this.stopped) {
+          // The stop closed our in-flight socket; that rejection is expected,
+          // not a connection failure — exit quietly without onError.
+          return;
+        }
+
         if (attempt >= maxAttempts) {
           const clientError = toClientError(
             error,
@@ -155,6 +165,15 @@ export class RealtimeClient {
       this.socket = socket;
 
       socket.onopen = () => {
+        if (this.stopped) {
+          // Opened after stop(): close it and reject so connect() exits without
+          // ever sending "start" — this is what prevented the un-reclaimable
+          // backend session.
+          socket.close();
+          reject(new Error("Realtime connection stopped before opening"));
+          return;
+        }
+
         opened = true;
         this.epoch += 1;
         // The retry budget is per stable connection: a successful open clears it
