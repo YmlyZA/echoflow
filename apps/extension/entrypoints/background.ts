@@ -4,6 +4,7 @@ import {
   type RuntimeMessage,
   type SessionErrorMessage,
   type SessionStartedMessage,
+  type SessionStoppedMessage,
   type ServerEventMessage,
   type StartFromPopupMessage,
   type StartSessionMessage,
@@ -65,6 +66,34 @@ export default defineBackground(() => {
     }
 
     enqueueMessage(() => handleRuntimeMessage(message));
+  });
+
+  chrome.tabs.onRemoved.addListener((tabId) => {
+    enqueueMessage(async () => {
+      await ensureStateLoaded();
+      if (
+        sessionState.status !== "idle" &&
+        sessionState.tabId === tabId
+      ) {
+        await stopSession("tab_closed");
+      }
+    });
+  });
+
+  chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (changeInfo.status !== "loading") {
+      return;
+    }
+
+    enqueueMessage(async () => {
+      await ensureStateLoaded();
+      if (
+        sessionState.status !== "idle" &&
+        sessionState.tabId === tabId
+      ) {
+        await stopSession("tab_navigated");
+      }
+    });
   });
 });
 
@@ -129,19 +158,22 @@ async function startSession(message: StartFromPopupMessage): Promise<void> {
 }
 
 async function stopSession(reason: string): Promise<void> {
-  if (sessionState.status !== "connecting" && sessionState.status !== "running") {
-    await clearBadge();
-    await commitSessionState(
-      reduceSessionState(sessionState, { type: "STOP_COMPLETED" })
-    );
+  if (sessionState.status === "idle") {
     return;
   }
 
   const localSessionId = sessionState.localSessionId;
+  const tabId = sessionState.tabId;
+
+  // STOP_REQUESTED only transitions connecting/running -> stopping; from
+  // error/stopping the reducer no-ops it, which is fine.
   await commitSessionState(
     reduceSessionState(sessionState, { type: "STOP_REQUESTED" })
   );
 
+  // Broadcast to offscreen for ALL non-idle states: an error/stopping session
+  // may still hold a live WebSocket + capture pipeline. stopActiveSession is
+  // idempotent, so a redundant stop is safe.
   await chrome.runtime.sendMessage({
     type: "STOP_SESSION",
     localSessionId,
@@ -152,6 +184,22 @@ async function stopSession(reason: string): Promise<void> {
   await commitSessionState(
     reduceSessionState(sessionState, { type: "STOP_COMPLETED" })
   );
+
+  await notifyTabSessionStopped(tabId, localSessionId);
+}
+
+async function notifyTabSessionStopped(
+  tabId: number,
+  localSessionId: string
+): Promise<void> {
+  try {
+    await chrome.tabs.sendMessage(tabId, {
+      type: "SESSION_STOPPED",
+      localSessionId
+    } satisfies SessionStoppedMessage);
+  } catch {
+    // Tab was closed or navigated away — nothing to tear down there.
+  }
 }
 
 async function handleRuntimeMessage(message: RuntimeMessage): Promise<void> {
@@ -336,7 +384,11 @@ async function sendMessageToTab(
     { type: "SERVER_EVENT" | "CONNECTION_STATUS" | "SESSION_ERROR" }
   >
 ): Promise<void> {
-  await chrome.tabs.sendMessage(tabId, message);
+  try {
+    await chrome.tabs.sendMessage(tabId, message);
+  } catch {
+    // Tab was closed or navigated away — nothing to deliver to.
+  }
 }
 
 async function setBadge(text: string): Promise<void> {

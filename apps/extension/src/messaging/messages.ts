@@ -6,6 +6,7 @@ export type RuntimeMessage =
   | StartFromPopupMessage
   | StopSessionMessage
   | SessionStartedMessage
+  | SessionStoppedMessage
   | SessionErrorMessage
   | ServerEventMessage
   | OffscreenReadyMessage
@@ -36,6 +37,11 @@ export interface SessionStartedMessage {
   type: "SESSION_STARTED";
   localSessionId: string;
   remoteSessionId?: string;
+}
+
+export interface SessionStoppedMessage {
+  type: "SESSION_STOPPED";
+  localSessionId: string;
 }
 
 export interface SessionErrorMessage {
@@ -72,6 +78,7 @@ export function isRuntimeMessage(message: unknown): message is RuntimeMessage {
     "START_FROM_POPUP",
     "STOP_SESSION",
     "SESSION_STARTED",
+    "SESSION_STOPPED",
     "SESSION_ERROR",
     "SERVER_EVENT",
     "OFFSCREEN_READY",

@@ -1,9 +1,8 @@
-import { isServerEvent } from "@echoflow/protocol";
 import type { SubtitleMode } from "@echoflow/protocol";
 import { assignSpeakerNumbers, speakerColor } from "../src/subtitles/speakerDisplay";
 import type { PointerEvent as ReactPointerEvent } from "react";
-import { useEffect, useReducer, useState } from "react";
-import { createRoot } from "react-dom/client";
+import { useEffect, useReducer, useRef, useState } from "react";
+import { createRoot, type Root } from "react-dom/client";
 import {
   isRuntimeMessage,
   type StopSessionMessage
@@ -11,13 +10,14 @@ import {
 import { SubtitleOverlay } from "../src/overlay/SubtitleOverlay";
 import { deriveOverlayStatus } from "../src/overlay/overlayStatus";
 import { DEFAULT_SUBTITLE_FONT_SIZE } from "../src/settings/settings";
+import { isStopForCurrentSession } from "../src/subtitles/overlaySession";
 import {
   createInitialSubtitleState,
   reduceSubtitleEvent,
   type TransientSubtitleError
 } from "../src/subtitles/reducer";
 
-function EchoFlowMount() {
+function EchoFlowMount({ onSessionEnded }: { onSessionEnded: () => void }) {
   const [subtitleState, dispatchSubtitleEvent] = useReducer(
     reduceSubtitleEvent,
     createInitialSubtitleState()
@@ -35,22 +35,7 @@ function EchoFlowMount() {
   const [sessionError, setSessionError] = useState<TransientSubtitleError | null>(
     null
   );
-
-  useEffect(() => {
-    function handleServerEvent(event: Event) {
-      const detail = (event as CustomEvent<unknown>).detail;
-
-      if (isServerEvent(detail)) {
-        dispatchSubtitleEvent(detail);
-      }
-    }
-
-    window.addEventListener("echoflow:server-event", handleServerEvent);
-
-    return () => {
-      window.removeEventListener("echoflow:server-event", handleServerEvent);
-    };
-  }, []);
+  const currentSessionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     function handleRuntimeMessage(message: unknown) {
@@ -59,46 +44,49 @@ function EchoFlowMount() {
       }
 
       if (message.type === "SERVER_EVENT") {
+        currentSessionIdRef.current = message.localSessionId;
         setHasSignal(true);
         setMode(message.mode);
         setSessionError(null);
-        window.dispatchEvent(
-          new CustomEvent("echoflow:server-event", {
-            detail: message.event
-          })
-        );
+        dispatchSubtitleEvent(message.event);
         return;
       }
 
       if (message.type === "CONNECTION_STATUS") {
+        currentSessionIdRef.current = message.localSessionId;
         setConnectionStatus(message.status);
         return;
       }
 
       if (message.type === "SESSION_ERROR") {
+        if (message.localSessionId !== undefined) {
+          currentSessionIdRef.current = message.localSessionId;
+        }
         setConnectionStatus(null);
         setSessionError({ code: message.code, message: message.message });
+        return;
+      }
+
+      if (message.type === "SESSION_STOPPED") {
+        if (isStopForCurrentSession(currentSessionIdRef.current, message.localSessionId)) {
+          onSessionEnded();
+        }
       }
     }
 
-    function handleStopSubtitles() {
-      void chrome.runtime.sendMessage({
-        type: "STOP_SESSION",
-        reason: "overlay_stop"
-      } satisfies StopSessionMessage);
-    }
-
     chrome.runtime.onMessage.addListener(handleRuntimeMessage);
-    window.addEventListener("echoflow:stop-subtitles", handleStopSubtitles);
 
     return () => {
       chrome.runtime.onMessage.removeListener(handleRuntimeMessage);
-      window.removeEventListener("echoflow:stop-subtitles", handleStopSubtitles);
     };
   }, []);
 
   function handleStop() {
-    window.dispatchEvent(new CustomEvent("echoflow:stop-subtitles"));
+    void chrome.runtime.sendMessage({
+      type: "STOP_SESSION",
+      localSessionId: currentSessionIdRef.current ?? undefined,
+      reason: "overlay_stop"
+    } satisfies StopSessionMessage);
   }
 
   function handleDecreaseFontSize() {
@@ -175,9 +163,13 @@ function EchoFlowMount() {
   );
 }
 
+type EchoFlowWindow = Window & { __echoflowRoot?: Root };
+
 export default defineContentScript({
   registration: "runtime",
   main() {
+    const echoWindow = window as EchoFlowWindow;
+    echoWindow.__echoflowRoot?.unmount();
     document.getElementById("echoflow-root")?.remove();
 
     const host = document.createElement("div");
@@ -185,6 +177,17 @@ export default defineContentScript({
     const shadowRoot = host.attachShadow({ mode: "open" });
     document.documentElement.append(host);
 
-    createRoot(shadowRoot).render(<EchoFlowMount />);
+    const root = createRoot(shadowRoot);
+    echoWindow.__echoflowRoot = root;
+
+    function teardown() {
+      root.unmount();
+      host.remove();
+      if (echoWindow.__echoflowRoot === root) {
+        echoWindow.__echoflowRoot = undefined;
+      }
+    }
+
+    root.render(<EchoFlowMount onSessionEnded={teardown} />);
   }
 });

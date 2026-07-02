@@ -30,6 +30,12 @@ describe("isRuntimeMessage", () => {
     ).toBe(true);
   });
 
+  it("accepts a SESSION_STOPPED message", () => {
+    expect(
+      isRuntimeMessage({ type: "SESSION_STOPPED", localSessionId: "local-1" })
+    ).toBe(true);
+  });
+
   it("rejects unknown message types", () => {
     expect(isRuntimeMessage({ type: "NOPE" })).toBe(false);
   });

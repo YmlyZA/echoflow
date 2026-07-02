@@ -37,6 +37,7 @@ export interface AudioPipelineOptions {
   getUserMedia?: typeof navigator.mediaDevices.getUserMedia;
   AudioContextCtor?: PcmAudioContextConstructor;
   now?: () => number;
+  onCaptureEnded?: (reason: string) => void;
 }
 
 export const DEFAULT_OUTPUT_SAMPLE_RATE_HZ = 16000;
@@ -49,6 +50,8 @@ export class OffscreenAudioPipeline {
   private workletNode: AudioWorkletNodeLike | undefined;
   private startedAtMs = 0;
   private sequenceNumber = 0;
+  private captureEndedHandler: (() => void) | undefined;
+  private captureEndedFired = false;
 
   constructor(private readonly options: AudioPipelineOptions) {}
 
@@ -66,6 +69,17 @@ export class OffscreenAudioPipeline {
     this.stream = await getUserMedia(
       buildChromeTabCaptureConstraints(this.options.streamId),
     );
+
+    this.captureEndedHandler = () => {
+      if (this.captureEndedFired) {
+        return;
+      }
+      this.captureEndedFired = true;
+      this.options.onCaptureEnded?.("capture_ended");
+    };
+    this.stream.getTracks().forEach((track) => {
+      track.addEventListener("ended", this.captureEndedHandler!);
+    });
 
     const context = new AudioContextCtor();
     this.audioContext = context;
@@ -91,6 +105,13 @@ export class OffscreenAudioPipeline {
     if (this.workletNode) {
       this.workletNode.port.onmessage = null;
       this.workletNode.disconnect();
+    }
+
+    if (this.captureEndedHandler) {
+      this.stream?.getTracks().forEach((track) => {
+        track.removeEventListener("ended", this.captureEndedHandler!);
+      });
+      this.captureEndedHandler = undefined;
     }
 
     this.stream?.getTracks().forEach((track) => {
