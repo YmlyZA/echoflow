@@ -78,6 +78,27 @@ describe("OffscreenAudioPipeline", () => {
     expect(ctx.closed).toBe(true);
     expect(client.stop).toHaveBeenCalledWith("user_stop");
   });
+
+  it("invokes onCaptureEnded once when a captured track ends", async () => {
+    const onCaptureEnded = vi.fn();
+    const { endTrack } = await startPipelineWithFakes({ onCaptureEnded });
+
+    endTrack(); // fire the track's "ended" event
+    endTrack(); // a second end must not double-report
+
+    expect(onCaptureEnded).toHaveBeenCalledTimes(1);
+    expect(onCaptureEnded).toHaveBeenCalledWith("capture_ended");
+  });
+
+  it("does not invoke onCaptureEnded for an ended event after stop", async () => {
+    const onCaptureEnded = vi.fn();
+    const { pipeline, endTrack } = await startPipelineWithFakes({ onCaptureEnded });
+
+    await pipeline.stop();
+    endTrack();
+
+    expect(onCaptureEnded).not.toHaveBeenCalled();
+  });
 });
 
 function createPipeline(
@@ -94,6 +115,21 @@ function createPipeline(
   });
 }
 
+async function startPipelineWithFakes(
+  overrides: Partial<ConstructorParameters<typeof OffscreenAudioPipeline>[0]> = {},
+): Promise<{ pipeline: OffscreenAudioPipeline; endTrack: () => void }> {
+  const track = createFakeTrack();
+  const stream = { getTracks: () => [track] } as unknown as MediaStream;
+  const pipeline = createPipeline({
+    getUserMedia: vi.fn(async () => stream),
+    ...overrides,
+  });
+
+  await pipeline.start();
+
+  return { pipeline, endTrack: () => track.emitEnded() };
+}
+
 function createClient(): AudioPipelineClient {
   return {
     sendAudioFrame: vi.fn(),
@@ -101,8 +137,36 @@ function createClient(): AudioPipelineClient {
   };
 }
 
+interface FakeMediaStreamTrack {
+  stop: ReturnType<typeof vi.fn>;
+  addEventListener: ReturnType<typeof vi.fn>;
+  removeEventListener: ReturnType<typeof vi.fn>;
+  emitEnded: () => void;
+}
+
+function createFakeTrack(): FakeMediaStreamTrack {
+  let endedHandler: (() => void) | undefined;
+
+  return {
+    stop: vi.fn(),
+    addEventListener: vi.fn((event: string, handler: () => void) => {
+      if (event === "ended") {
+        endedHandler = handler;
+      }
+    }),
+    removeEventListener: vi.fn((event: string, handler: () => void) => {
+      if (event === "ended" && endedHandler === handler) {
+        endedHandler = undefined;
+      }
+    }),
+    emitEnded: () => {
+      endedHandler?.();
+    },
+  };
+}
+
 function createStream(): MediaStream {
-  const tracks = [{ stop: vi.fn() }];
+  const tracks = [createFakeTrack()];
   return { getTracks: () => tracks } as unknown as MediaStream;
 }
 
