@@ -67,6 +67,29 @@ function stubSource(): {
   };
 }
 
+function stubSourceWithRejectingClose(): {
+  source: SubtitleSource;
+  error: (e: Error) => void;
+} {
+  let onError: ((e: Error) => void) | undefined;
+  const source: SubtitleSource = {
+    open: (opts) => {
+      onError = opts.onError;
+      return {
+        pushFrame: () => {},
+        end: async () => {},
+        close: async () => {
+          throw new Error("teardown failed");
+        },
+      };
+    },
+  };
+  return {
+    source,
+    error: (e) => onError?.(e),
+  };
+}
+
 function startMessage(mode?: string, sourceLanguage?: string): string {
   return JSON.stringify({
     type: "start",
@@ -134,6 +157,29 @@ describe("RealtimeSession", () => {
       expect.objectContaining({ type: "error", code: "provider_error" }),
     );
     expect(socket.readyState).toBe(3); // socket closed, not left half-open
+  });
+
+  it("still closes the socket when the provider stream's close() rejects", async () => {
+    const socket = new FakeSocket();
+    const stub = stubSourceWithRejectingClose();
+    const factory: SubtitleSourceFactory = () => stub.source;
+
+    const session = new RealtimeSession({
+      socket: socket as never,
+      createSubtitleSource: factory,
+      defaultTargetLanguage: "zh-CN",
+    });
+    session.start();
+    socket.emit("message", startMessage(), false);
+
+    stub.error(new Error("upstream ASR died"));
+    await flush();
+    await flush(); // extra microtask hop for the .catch().then() chain
+
+    expect(socket.events()).toContainEqual(
+      expect.objectContaining({ type: "error", code: "provider_error" }),
+    );
+    expect(socket.readyState).toBe(3); // socket still closes even though close() rejected
   });
 
   it("sends mode_unavailable error and does NOT close the socket when factory throws ModeUnavailableError", () => {
