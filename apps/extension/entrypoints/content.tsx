@@ -6,7 +6,8 @@ import { createRoot, type Root } from "react-dom/client";
 import {
   isInternalSender,
   isRuntimeMessage,
-  type StopSessionMessage
+  type StopSessionMessage,
+  type VideoTimeSampleMessage
 } from "../src/messaging/messages";
 import { SubtitleOverlay } from "../src/overlay/SubtitleOverlay";
 import { deriveOverlayStatus } from "../src/overlay/overlayStatus";
@@ -85,6 +86,45 @@ function EchoFlowMount({ onSessionEnded }: { onSessionEnded: () => void }) {
 
     return () => {
       chrome.runtime.onMessage.removeListener(handleRuntimeMessage);
+    };
+  }, []);
+
+  useEffect(() => {
+    const THROTTLE_MS = 250;
+    let lastSentAt = 0;
+
+    function sample(force: boolean): void {
+      const video = document.querySelector("video");
+      if (video === null || Number.isNaN(video.currentTime)) {
+        return;
+      }
+      const wallClockMs = Date.now();
+      if (!force && wallClockMs - lastSentAt < THROTTLE_MS) {
+        return;
+      }
+      lastSentAt = wallClockMs;
+      void chrome.runtime.sendMessage({
+        type: "VIDEO_TIME_SAMPLE",
+        wallClockMs,
+        videoSec: video.currentTime,
+      } satisfies VideoTimeSampleMessage);
+    }
+
+    const onTimeUpdate = (): void => sample(false);
+    const onDiscontinuity = (): void => sample(true);
+
+    // Listen at the document level (capture) so a <video> inserted after mount is
+    // still covered without re-binding.
+    document.addEventListener("timeupdate", onTimeUpdate, true);
+    document.addEventListener("seeked", onDiscontinuity, true);
+    document.addEventListener("play", onDiscontinuity, true);
+    document.addEventListener("pause", onDiscontinuity, true);
+
+    return () => {
+      document.removeEventListener("timeupdate", onTimeUpdate, true);
+      document.removeEventListener("seeked", onDiscontinuity, true);
+      document.removeEventListener("play", onDiscontinuity, true);
+      document.removeEventListener("pause", onDiscontinuity, true);
     };
   }, []);
 
