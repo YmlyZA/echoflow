@@ -23,10 +23,13 @@ export interface HistorySessionRecord {
   videoTitle?: string;
 }
 
-export type HistorySegmentRecord = SubtitleSegment;
+export type HistorySegmentRecord = SubtitleSegment & {
+  videoStartSec?: number;
+  videoEndSec?: number;
+};
 
 export type AppendableSubtitleSegment =
-  | SubtitleSegment
+  | HistorySegmentRecord
   | (Omit<SubtitleSegment, "status"> & { status: "partial" });
 
 export interface CreateLocalSessionInput {

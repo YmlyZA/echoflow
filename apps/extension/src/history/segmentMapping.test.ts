@@ -64,4 +64,33 @@ describe("finalEventToSegment", () => {
     });
     expect(segment.speakerId).toBeUndefined();
   });
+
+  it("carries video times onto the segment when supplied", () => {
+    const segment = finalEventToSegment({
+      localSessionId: "local-1",
+      event: {
+        type: "final", segmentId: "e1:seg-1", sourceText: "hi", translatedText: "你好",
+        startTimeMs: 0, endTimeMs: 500,
+      },
+      sourceLanguage: "en",
+      targetLanguage: "zh-CN",
+      videoStartSec: 42.0,
+      videoEndSec: 42.5,
+    });
+    expect(segment.videoStartSec).toBe(42.0);
+    expect(segment.videoEndSec).toBe(42.5);
+  });
+
+  it("omits video times when not supplied", () => {
+    const segment = finalEventToSegment({
+      localSessionId: "local-1",
+      event: {
+        type: "final", segmentId: "e1:seg-1", sourceText: "hi", translatedText: "你好",
+        startTimeMs: 0, endTimeMs: 500,
+      },
+      sourceLanguage: "en",
+      targetLanguage: "zh-CN",
+    });
+    expect(segment.videoStartSec).toBeUndefined();
+  });
 });
