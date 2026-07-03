@@ -38,18 +38,24 @@ function ensureStateLoaded(): Promise<void> {
   stateLoaded ??= loadPersistedState().then((persisted) => {
     sessionState = persisted.sessionState;
     detectedSourceLanguage = persisted.detectedSourceLanguage;
+    captureStartedAtMs = persisted.captureStartedAtMs;
   });
   return stateLoaded;
 }
 
 async function commitSessionState(next: SessionState): Promise<void> {
   sessionState = next;
-  await persistState({ sessionState, detectedSourceLanguage });
+  await persistState({ sessionState, detectedSourceLanguage, captureStartedAtMs });
 }
 
 async function commitDetectedSourceLanguage(language: string): Promise<void> {
   detectedSourceLanguage = language;
-  await persistState({ sessionState, detectedSourceLanguage });
+  await persistState({ sessionState, detectedSourceLanguage, captureStartedAtMs });
+}
+
+async function commitCaptureStartedAtMs(value: number): Promise<void> {
+  captureStartedAtMs = value;
+  await persistState({ sessionState, detectedSourceLanguage, captureStartedAtMs });
 }
 
 export default defineBackground(() => {
@@ -68,14 +74,14 @@ export default defineBackground(() => {
     if (!isInternalSender(sender, chrome.runtime.id)) {
       return;
     }
-    if (
-      isRuntimeMessage(message) &&
-      message.type === "VIDEO_TIME_SAMPLE" &&
-      sender.tab?.id !== undefined &&
-      sessionState.status !== "idle" &&
-      sender.tab.id === sessionState.tabId
-    ) {
-      videoTimeIndex.addSample(message.wallClockMs, message.videoSec);
+    if (isRuntimeMessage(message) && message.type === "VIDEO_TIME_SAMPLE") {
+      if (
+        sender.tab?.id !== undefined &&
+        sessionState.status !== "idle" &&
+        sender.tab.id === sessionState.tabId
+      ) {
+        videoTimeIndex.addSample(message.wallClockMs, message.videoSec);
+      }
       return;
     }
     if (!isRuntimeMessage(message)) {
@@ -272,7 +278,7 @@ async function handleSessionStarted(
   );
 
   if (message.captureStartedAtMs !== undefined) {
-    captureStartedAtMs = message.captureStartedAtMs;
+    await commitCaptureStartedAtMs(message.captureStartedAtMs);
   }
 
   await setBadge("ON");
