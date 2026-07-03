@@ -129,6 +129,9 @@ export class InterpretationSubtitleSource implements SubtitleSource {
         if (disposed) return;
         disposed = true;
         closed = true;
+        // Unblock any in-flight end() drain: the transport is going away, so a
+        // trailing final can no longer arrive — don't sit out the drain timeout.
+        drain.cancel();
         transport.close();
       },
     };

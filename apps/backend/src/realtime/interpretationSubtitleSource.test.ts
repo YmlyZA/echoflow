@@ -157,6 +157,21 @@ describe("InterpretationSubtitleSource", () => {
     expect(t.sent.length).toBe(afterOpen + 1); // still dropped
   });
 
+  it("close() unblocks a pending end() drain instead of waiting out the timeout", async () => {
+    const t = stubTransport();
+    const source = new InterpretationSubtitleSource(CONFIG, "en", "zh-CN", t.factory, {
+      // Drain timeout never fires; only close()'s cancel can settle the drain,
+      // so a hang here would mean the fix is missing.
+      setTimer: () => {},
+    });
+    const stream = source.open({ onEvent: () => {} });
+
+    const endPromise = stream.end(); // sends FinishSession, arms drain, awaits (no trailing final)
+    await stream.close(); // disposes the transport -> cancels the drain
+
+    await expect(endPromise).resolves.toBeUndefined();
+  });
+
   it("end() is single-shot (FinishSession sent once)", async () => {
     const t = stubTransport();
     const source = new InterpretationSubtitleSource(CONFIG, "en", "zh-CN", t.factory, {

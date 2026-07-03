@@ -14,6 +14,7 @@ export interface DrainGateOptions {
 export function createDrainGate(options: DrainGateOptions = {}): {
   arm(): void;
   onFinal(): void;
+  cancel(): void;
   wait(): Promise<void>;
 } {
   const setTimer = options.setTimer ?? ((fn, ms) => void setTimeout(fn, ms));
@@ -34,6 +35,13 @@ export function createDrainGate(options: DrainGateOptions = {}): {
     },
     onFinal(): void {
       if (armed) settle();
+    },
+    cancel(): void {
+      // Abort an in-flight (or not-yet-started) wait immediately — used when the
+      // stream is disposed (e.g. the client closed the socket on stop), so the
+      // drain does not sit out its full timeout waiting for a trailing final
+      // that can no longer arrive.
+      settle();
     },
     wait(): Promise<void> {
       return new Promise<void>((res) => {

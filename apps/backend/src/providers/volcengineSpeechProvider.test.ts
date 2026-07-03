@@ -222,6 +222,21 @@ describe("VolcengineSpeechProvider", () => {
     expect(transport.sent.length).toBe(afterOpen + 1); // still dropped
   });
 
+  it("close() unblocks a pending end() drain instead of waiting out the timeout", async () => {
+    const transport = createFakeTransport();
+    const provider = new VolcengineSpeechProvider(CONFIG, transport.factory, {
+      // Drain timeout never fires; only close()'s cancel can settle the drain,
+      // so a hang here would mean the fix is missing.
+      setTimer: () => {},
+    });
+    const stream = provider.open({ onSegment: () => {} });
+
+    const endPromise = stream.end(); // arms the drain and awaits (no trailing final will arrive)
+    await stream.close(); // disposes the transport -> cancels the drain
+
+    await expect(endPromise).resolves.toBeUndefined();
+  });
+
   it("end() is single-shot (last frame sent once)", async () => {
     const transport = createFakeTransport();
     const provider = new VolcengineSpeechProvider(CONFIG, transport.factory, {
