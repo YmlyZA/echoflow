@@ -19,6 +19,8 @@ export interface HistorySessionRecord {
   remoteSessionId?: string;
   syncStatus: SyncStatus;
   error?: HistorySessionError;
+  videoUrl?: string;
+  videoTitle?: string;
 }
 
 export type HistorySegmentRecord = SubtitleSegment;
@@ -35,6 +37,8 @@ export interface CreateLocalSessionInput {
   syncStatus?: SyncStatus;
   now?: () => number;
   randomSuffix?: () => string;
+  videoUrl?: string;
+  videoTitle?: string;
 }
 
 export interface RecordSessionErrorInput {
@@ -99,6 +103,14 @@ export function createHistoryStore(
 
       if (input.remoteSessionId) {
         session.remoteSessionId = input.remoteSessionId;
+      }
+
+      if (input.videoUrl) {
+        session.videoUrl = input.videoUrl;
+      }
+
+      if (input.videoTitle) {
+        session.videoTitle = input.videoTitle;
       }
 
       await persistence.addSession(session);

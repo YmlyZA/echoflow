@@ -42,10 +42,20 @@ four slices, each spec → plan → subagent-driven build → PR, all merged beh
 - ✅ **Slice C — Backend fault tolerance** (PR #23) → `specs/2026-07-02-backend-fault-tolerance-design.md`. #1 a transient translation failure is non-fatal (source-only final + non-fatal error, session survives); #10 ASR audio sequence resets on reconnect; #11 reconciler dedupes by utterance boundary not text (verbatim repeats surface); #12 a fatal runtime provider error closes the client socket.
 - ✅ **Slice E — WS origin & auth hardening** (PR #24) → `specs/2026-07-02-ws-origin-and-auth-hardening-design.md`. #3 WS handshake Origin allowlist (web-page origins → 403, closes CSWSH/quota-abuse); constant-time key compare; extension runtime-message sender validation.
 
-**Deferred — need a product decision (not autonomous):**
-- 🔵 **Slice D — stop tail-final (#8)** → capturing the last in-flight sentence on manual Stop means making Stop wait ~1.5s for the backend drain (client must stop closing the socket early) + a stop-ack handshake through the teardown flow. Tradeoff: slower/heavier Stop vs. the last sentence. Also the backend-only ~1.5s dangling drain promise (no user impact).
-- 🔵 **#9 — latest-wins drops a translated final from history** → the deliberate "bounded movie-style current line" render UX conflicts with history completeness on the same event stream. Fixing it changes render behavior (flash-back of superseded lines) or needs a render/history channel split.
-- Minor deferred (from per-task/whole-branch reviews): spurious `capture_ended` history entry on clean tab close (cosmetic); reconciler silently drops a distinct definite sharing a `start_time` (speculative SeedASR edge); `onUpdated("loading")` during start can stop a just-started session on redirect-heavy pages (by design).
+**Resolved after the product decision:**
+- ✅ **#8 — stop tail-final** (PR #26) → per the decision to keep Stop instant (no tail-final capture), fixed the backend-only half: `drainGate.cancel()` on `close()` so a stop no longer sits out the ~1.5s drain timeout for a final that can't arrive. → `specs/2026-07-02-... ` (commit in PR #26).
+- ✅ **#9 — history completeness** → resolved by the **video-anchored history foundation (SP1a)**, PR #TBD → `specs/2026-07-03-video-anchored-history-foundation-design.md`. Backend emits **every** confirmed final (bounded FIFO queue, no latest-wins drop); the extension reducer keeps the on-screen current line **monotonic** (`compareSegmentId`, covers pipeline `seg-` and interpret `ast-` ids) so history is complete while rendering stays a clean single line. Sessions now also store `videoUrl`/`videoTitle` (Dexie v2) — the identity for cache reuse.
+
+**History-as-user-data arc (local, video-aware — no accounts):**
+- ✅ **SP1a — foundation** (complete history + video identity) — shipped, see above.
+- ⬜ **SP1b — capture→video-time alignment**: content-script `video.currentTime` sampling → background aligns each final to a video position (`videoStartSec`/`videoEndSec`). HTML5 `<video>` first.
+- ⬜ **SP2 — scrub-sync playback**: the overlay follows `video.currentTime` (incl. seeks) from stored video-time.
+- ⬜ **SP3 — per-video cache reuse**: revisiting a known `videoUrl` loads its transcript; identity normalization / provider `videoId` (e.g. YouTube).
+- ⬜ **SP4 — accounts / cloud sync** (uses the existing `syncStatus`) — separate product decision, deferred.
+
+**Minor deferred (from per-task/whole-branch reviews):**
+- `translation_failed` error events now surface once per failed line during a translation outage (self-clearing "connection error" pill; wording is pre-existing/misleading for a translation hiccup) — future UX polish (dedicated non-connection error style / debounce).
+- Spurious `capture_ended` history entry on clean tab close (cosmetic); reconciler silently drops a distinct definite sharing a `start_time` (speculative SeedASR edge); `onUpdated("loading")` during start can stop a just-started session on redirect-heavy pages (by design).
 
 ## Language support note
 

@@ -144,7 +144,7 @@ describe("PipelineSubtitleSource", () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
-  it("emits a translated final and drops a stale one (latest-wins)", async () => {
+  it("emits a translated final even when a newer segment starts (no latest-wins drop)", async () => {
     const speech = stubSpeech();
     let resolveFirst: (value: string) => void = () => {};
     let calls = 0;
@@ -166,6 +166,68 @@ describe("PipelineSubtitleSource", () => {
     await vi.waitFor(() =>
       expect(events.some((e) => e.type === "partial" && e.segmentId === "seg-2")).toBe(true),
     );
-    expect(events.some((e) => e.type === "final" && e.segmentId === "seg-1")).toBe(false);
+    // complete history: seg-1's final is still emitted, not dropped by a later segment
+    await vi.waitFor(() =>
+      expect(events.some((e) => e.type === "final" && e.segmentId === "seg-1")).toBe(true),
+    );
+  });
+
+  it("emits every final in order even when two arrive within one translation RTT", async () => {
+    const events: ServerEvent[] = [];
+    const speech = stubSpeech();
+    const translations: string[] = [];
+    const translation: TranslationProvider = {
+      translate: vi.fn(async (input: { text: string }) => {
+        translations.push(input.text);
+        return `[${input.text}]`;
+      }),
+      close: vi.fn(),
+    };
+    const source = new PipelineSubtitleSource(speech.provider, translation, "zh-CN");
+    const stream = source.open({ onEvent: (event) => events.push(event) });
+
+    speech.emit({ kind: "final", segmentId: "seg-1", text: "one", startTimeMs: 0, endTimeMs: 300 });
+    speech.emit({ kind: "final", segmentId: "seg-2", text: "two", startTimeMs: 300, endTimeMs: 600 });
+    await stream.end();
+
+    const finals = events.filter((e) => e.type === "final");
+    expect(finals.map((e) => (e as { segmentId: string }).segmentId)).toEqual(["seg-1", "seg-2"]);
+    expect(translations).toEqual(["one", "two"]);
+  });
+
+  it("emits history_truncated exactly once when the pending-finals queue overflows MAX_PENDING_FINALS (64)", async () => {
+    const speech = stubSpeech();
+    // A translate() that never resolves parks the single-flight drain worker
+    // on the very first final, so every subsequent final just accumulates in
+    // the pendingFinals queue (drainTranslations() is a no-op re-entry while
+    // `translating` is true).
+    const translation: TranslationProvider = {
+      translate: () => new Promise<string>(() => {}),
+      close: () => {},
+    };
+    const events = buildSource(translation, speech.provider);
+
+    // Arithmetic: final #1 is shifted out of the queue immediately and parks
+    // the worker (awaiting the never-resolving translate) — it never sits in
+    // the queue. Finals #2.. then accumulate: after final #k (k>=2) the queue
+    // length is k-1. The overflow guard fires when a push makes the queue
+    // length exceed MAX_PENDING_FINALS (64), i.e. length 65 after final #66
+    // (1 parked + 65 queued = 66). That push triggers exactly one drop (and
+    // one history_truncated event), bringing the length back to 64. So
+    // exactly 66 finals emitted -> exactly 1 history_truncated event.
+    for (let i = 1; i <= 66; i++) {
+      speech.emit({
+        kind: "final",
+        segmentId: `seg-${i}`,
+        text: `text-${i}`,
+        startTimeMs: i,
+        endTimeMs: i + 1,
+      });
+    }
+
+    const truncations = events.filter(
+      (e) => e.type === "error" && e.code === "history_truncated",
+    );
+    expect(truncations).toHaveLength(1);
   });
 });

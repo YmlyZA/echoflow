@@ -1,4 +1,5 @@
 import type { ServerEvent } from "@echoflow/protocol";
+import { compareSegmentId } from "./compareSegmentId";
 
 const MAX_FINALIZED_TRACKED = 50;
 
@@ -46,16 +47,22 @@ export function reduceSubtitleEvent(
   switch (event.type) {
     case "partial":
       return reducePartialEvent(state, event);
-    case "final":
+    case "final": {
+      const isOlderThanCurrent =
+        state.currentSegment !== null &&
+        compareSegmentId(event.segmentId, state.currentSegment.segmentId) < 0;
+
       return {
         ...state,
-        currentSegment: {
-          segmentId: event.segmentId,
-          sourceText: event.sourceText,
-          translatedText: event.translatedText,
-          status: "final",
-          ...(event.speakerId !== undefined ? { speakerId: event.speakerId } : {})
-        },
+        currentSegment: isOlderThanCurrent
+          ? state.currentSegment
+          : {
+              segmentId: event.segmentId,
+              sourceText: event.sourceText,
+              translatedText: event.translatedText,
+              status: "final",
+              ...(event.speakerId !== undefined ? { speakerId: event.speakerId } : {})
+            },
         finalizedSegmentIds: appendFinalizedSegmentId(
           state.finalizedSegmentIds,
           event.segmentId
@@ -63,6 +70,7 @@ export function reduceSubtitleEvent(
         seenSpeakerIds: trackSpeaker(state.seenSpeakerIds, event.speakerId),
         transientError: null
       };
+    }
     case "language":
       return {
         ...state,
@@ -88,6 +96,13 @@ function reducePartialEvent(
   event: Extract<ServerEvent, { type: "partial" }>
 ): SubtitleState {
   if (state.finalizedSegmentIds.includes(event.segmentId)) {
+    return state;
+  }
+
+  if (
+    state.currentSegment !== null &&
+    compareSegmentId(event.segmentId, state.currentSegment.segmentId) < 0
+  ) {
     return state;
   }
 
