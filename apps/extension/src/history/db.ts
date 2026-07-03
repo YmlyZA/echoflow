@@ -16,6 +16,9 @@ export class EchoFlowHistoryDatabase extends Dexie {
       sessions: "id, startedAt, updatedAt, remoteSessionId, syncStatus",
       segments: "[sessionId+segmentId], sessionId, segmentId, startTimeMs"
     });
+    this.version(2).stores({
+      sessions: "id, startedAt, updatedAt, remoteSessionId, syncStatus, videoUrl"
+    });
   }
 }
 

@@ -57,6 +57,18 @@ describe("history store", () => {
     ]);
   });
 
+  it("persists video identity on a created session", async () => {
+    const session = await store.createLocalSession({
+      now: () => 100,
+      randomSuffix: () => "s",
+      videoUrl: "https://example.com/watch/123",
+      videoTitle: "Example Video",
+    });
+    const fetched = await store.getSession(session.id);
+    expect(fetched?.videoUrl).toBe("https://example.com/watch/123");
+    expect(fetched?.videoTitle).toBe("Example Video");
+  });
+
   it("generates distinct ids for calls in the same millisecond", async () => {
     const a = await store.createLocalSession({ now: () => 42 });
     const b = await store.createLocalSession({ now: () => 42 });

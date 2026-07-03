@@ -115,8 +115,12 @@ async function startSession(message: StartFromPopupMessage): Promise<void> {
   try {
     await injectRuntimeContentScript(tabId);
 
+    const tab = await chrome.tabs.get(tabId).catch(() => undefined);
+
     const localSession = await historyStore.createLocalSession({
-      targetLanguage: settings.targetLanguage
+      targetLanguage: settings.targetLanguage,
+      ...(tab?.url ? { videoUrl: tab.url } : {}),
+      ...(tab?.title ? { videoTitle: tab.title } : {})
     });
     localSessionId = localSession.id;
     await commitDetectedSourceLanguage("unknown");
