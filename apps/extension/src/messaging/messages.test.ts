@@ -36,6 +36,12 @@ describe("isRuntimeMessage", () => {
     ).toBe(true);
   });
 
+  it("accepts a VIDEO_TIME_SAMPLE message", () => {
+    expect(
+      isRuntimeMessage({ type: "VIDEO_TIME_SAMPLE", wallClockMs: 1000, videoSec: 12.5 })
+    ).toBe(true);
+  });
+
   it("rejects unknown message types", () => {
     expect(isRuntimeMessage({ type: "NOPE" })).toBe(false);
   });

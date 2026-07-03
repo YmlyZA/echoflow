@@ -10,7 +10,8 @@ export type RuntimeMessage =
   | SessionErrorMessage
   | ServerEventMessage
   | OffscreenReadyMessage
-  | ConnectionStatusMessage;
+  | ConnectionStatusMessage
+  | VideoTimeSampleMessage;
 
 export interface StartSessionMessage {
   type: "START_SESSION";
@@ -37,6 +38,7 @@ export interface SessionStartedMessage {
   type: "SESSION_STARTED";
   localSessionId: string;
   remoteSessionId?: string;
+  captureStartedAtMs?: number;
 }
 
 export interface SessionStoppedMessage {
@@ -68,6 +70,12 @@ export interface ConnectionStatusMessage {
   status: "reconnecting" | "connected";
 }
 
+export interface VideoTimeSampleMessage {
+  type: "VIDEO_TIME_SAMPLE";
+  wallClockMs: number;
+  videoSec: number;
+}
+
 export function isRuntimeMessage(message: unknown): message is RuntimeMessage {
   if (!isRecord(message) || typeof message.type !== "string") {
     return false;
@@ -82,7 +90,8 @@ export function isRuntimeMessage(message: unknown): message is RuntimeMessage {
     "SESSION_ERROR",
     "SERVER_EVENT",
     "OFFSCREEN_READY",
-    "CONNECTION_STATUS"
+    "CONNECTION_STATUS",
+    "VIDEO_TIME_SAMPLE"
   ].includes(message.type);
 }
 
