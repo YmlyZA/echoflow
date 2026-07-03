@@ -144,7 +144,7 @@ describe("PipelineSubtitleSource", () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
-  it("emits a translated final and drops a stale one (latest-wins)", async () => {
+  it("emits a translated final even when a newer segment starts (no latest-wins drop)", async () => {
     const speech = stubSpeech();
     let resolveFirst: (value: string) => void = () => {};
     let calls = 0;
@@ -166,6 +166,31 @@ describe("PipelineSubtitleSource", () => {
     await vi.waitFor(() =>
       expect(events.some((e) => e.type === "partial" && e.segmentId === "seg-2")).toBe(true),
     );
-    expect(events.some((e) => e.type === "final" && e.segmentId === "seg-1")).toBe(false);
+    // complete history: seg-1's final is still emitted, not dropped by a later segment
+    await vi.waitFor(() =>
+      expect(events.some((e) => e.type === "final" && e.segmentId === "seg-1")).toBe(true),
+    );
+  });
+
+  it("emits every final in order even when two arrive within one translation RTT", async () => {
+    const events: ServerEvent[] = [];
+    const speech = stubSpeech();
+    const translations: string[] = [];
+    const translation: TranslationProvider = {
+      translate: vi.fn(async (input: { text: string }) => {
+        translations.push(input.text);
+        return `[${input.text}]`;
+      }),
+      close: vi.fn(),
+    };
+    const source = new PipelineSubtitleSource(speech.provider, translation, "zh-CN");
+    const stream = source.open({ onEvent: (event) => events.push(event) });
+
+    speech.emit({ kind: "final", segmentId: "seg-1", text: "one", startTimeMs: 0, endTimeMs: 300 });
+    speech.emit({ kind: "final", segmentId: "seg-2", text: "two", startTimeMs: 300, endTimeMs: 600 });
+    await stream.end();
+
+    const finals = events.filter((e) => e.type === "final");
+    expect(finals.map((e) => (e as { segmentId: string }).segmentId)).toEqual(["seg-1", "seg-2"]);
   });
 });

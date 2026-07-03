@@ -22,17 +22,22 @@ export class PipelineSubtitleSource implements SubtitleSource {
     const targetLanguage = this.targetLanguage;
 
     let sourceLanguage = "unknown";
-    let latestSegmentId: string | undefined;
-    let pendingFinal:
-      | { segmentId: string; sourceText: string; startTimeMs: number; endTimeMs: number; speakerId?: string }
-      | undefined;
+    const MAX_PENDING_FINALS = 64;
+    type PendingFinal = {
+      segmentId: string;
+      sourceText: string;
+      startTimeMs: number;
+      endTimeMs: number;
+      speakerId?: string;
+    };
+    const pendingFinals: PendingFinal[] = [];
     let translating = false;
     let closed = false;
     let tail: Promise<void> = Promise.resolve();
     let idleResolvers: Array<() => void> = [];
 
     const resolveIdleIfDone = (): void => {
-      if (pendingFinal === undefined && !translating) {
+      if (pendingFinals.length === 0 && !translating) {
         const resolvers = idleResolvers;
         idleResolvers = [];
         for (const resolve of resolvers) {
@@ -47,9 +52,8 @@ export class PipelineSubtitleSource implements SubtitleSource {
       }
       translating = true;
       try {
-        while (pendingFinal !== undefined) {
-          const job = pendingFinal;
-          pendingFinal = undefined;
+        while (pendingFinals.length > 0) {
+          const job = pendingFinals.shift()!;
           let translatedText: string;
           try {
             translatedText = await translationProvider.translate({
@@ -61,42 +65,37 @@ export class PipelineSubtitleSource implements SubtitleSource {
             if (closed) {
               return;
             }
-            // Translation failed transiently. Do NOT kill the session (that is
-            // what opts.onError does). If this segment is still current, surface
-            // the source text with an empty translation so the line and history
-            // stay complete, plus a non-fatal error event.
-            if (job.segmentId === latestSegmentId) {
-              opts.onEvent({
-                type: "final",
-                segmentId: job.segmentId,
-                sourceText: job.sourceText,
-                translatedText: "",
-                startTimeMs: job.startTimeMs,
-                endTimeMs: job.endTimeMs,
-                ...(job.speakerId !== undefined ? { speakerId: job.speakerId } : {}),
-              });
-              opts.onEvent({
-                type: "error",
-                code: "translation_failed",
-                message: toError(error).message,
-              });
-            }
+            // Translation failed transiently (audit #1): emit source-only + a
+            // non-fatal error, keep the session alive. Now unconditional (every
+            // final is recorded), no latest-wins gate.
+            opts.onEvent({
+              type: "final",
+              segmentId: job.segmentId,
+              sourceText: job.sourceText,
+              translatedText: "",
+              startTimeMs: job.startTimeMs,
+              endTimeMs: job.endTimeMs,
+              ...(job.speakerId !== undefined ? { speakerId: job.speakerId } : {}),
+            });
+            opts.onEvent({
+              type: "error",
+              code: "translation_failed",
+              message: toError(error).message,
+            });
             continue;
           }
           if (closed) {
             return;
           }
-          if (job.segmentId === latestSegmentId) {
-            opts.onEvent({
-              type: "final",
-              segmentId: job.segmentId,
-              sourceText: job.sourceText,
-              translatedText,
-              startTimeMs: job.startTimeMs,
-              endTimeMs: job.endTimeMs,
-              ...(job.speakerId !== undefined ? { speakerId: job.speakerId } : {}),
-            });
-          }
+          opts.onEvent({
+            type: "final",
+            segmentId: job.segmentId,
+            sourceText: job.sourceText,
+            translatedText,
+            startTimeMs: job.startTimeMs,
+            endTimeMs: job.endTimeMs,
+            ...(job.speakerId !== undefined ? { speakerId: job.speakerId } : {}),
+          });
         }
       } finally {
         translating = false;
@@ -105,9 +104,6 @@ export class PipelineSubtitleSource implements SubtitleSource {
     };
 
     const onSegment = (event: SegmentEvent): void => {
-      if (event.kind === "partial" || event.kind === "final") {
-        latestSegmentId = event.segmentId;
-      }
       if (event.kind === "language") {
         sourceLanguage = event.sourceLanguage;
         opts.onEvent({
@@ -128,13 +124,21 @@ export class PipelineSubtitleSource implements SubtitleSource {
         });
         return;
       }
-      pendingFinal = {
+      pendingFinals.push({
         segmentId: event.segmentId,
         sourceText: event.text,
         startTimeMs: event.startTimeMs,
         endTimeMs: event.endTimeMs,
         ...(event.speakerId !== undefined ? { speakerId: event.speakerId } : {}),
-      };
+      });
+      if (pendingFinals.length > MAX_PENDING_FINALS) {
+        pendingFinals.shift(); // drop oldest — bounded memory under a stalled translator
+        opts.onEvent({
+          type: "error",
+          code: "history_truncated",
+          message: "Translation backlog exceeded; oldest line dropped",
+        });
+      }
       void drainTranslations();
     };
 
@@ -155,7 +159,7 @@ export class PipelineSubtitleSource implements SubtitleSource {
         await stream.end();
         await tail;
         await new Promise<void>((resolve) => {
-          if (pendingFinal === undefined && !translating) { resolve(); return; }
+          if (pendingFinals.length === 0 && !translating) { resolve(); return; }
           idleResolvers.push(resolve);
         });
       },
