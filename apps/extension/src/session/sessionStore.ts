@@ -3,6 +3,7 @@ import { createInitialSessionState, type SessionState } from "./sessionState";
 export interface PersistedSessionState {
   sessionState: SessionState;
   detectedSourceLanguage: string;
+  captureStartedAtMs?: number;
 }
 
 export interface SessionStateStorage {
@@ -31,7 +32,11 @@ export async function loadPersistedState(
   // "stopping" would leave the session wedged, since nothing would drive it back
   // to idle on the next service-worker wake.
   if (stored.sessionState.status === "stopping") {
-    return { ...stored, sessionState: createInitialSessionState() };
+    return {
+      ...stored,
+      sessionState: createInitialSessionState(),
+      captureStartedAtMs: undefined
+    };
   }
 
   return stored;

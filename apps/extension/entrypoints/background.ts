@@ -22,6 +22,7 @@ import {
 import { loadPersistedState, persistState } from "../src/session/sessionStore";
 import { createSerialQueue } from "../src/messaging/serialQueue";
 import { isMessageForActiveSession } from "../src/session/activeSession";
+import { createVideoTimeIndex } from "../src/subtitles/videoTimeIndex";
 
 const OFFSCREEN_DOCUMENT_PATH = "offscreen.html";
 const CONTENT_SCRIPT_PATH = "content-scripts/content.js";
@@ -30,23 +31,31 @@ const historyStore = createHistoryStore();
 let sessionState: SessionState = createInitialSessionState();
 let detectedSourceLanguage = "unknown";
 let stateLoaded: Promise<void> | undefined;
+const videoTimeIndex = createVideoTimeIndex();
+let captureStartedAtMs: number | undefined;
 
 function ensureStateLoaded(): Promise<void> {
   stateLoaded ??= loadPersistedState().then((persisted) => {
     sessionState = persisted.sessionState;
     detectedSourceLanguage = persisted.detectedSourceLanguage;
+    captureStartedAtMs = persisted.captureStartedAtMs;
   });
   return stateLoaded;
 }
 
 async function commitSessionState(next: SessionState): Promise<void> {
   sessionState = next;
-  await persistState({ sessionState, detectedSourceLanguage });
+  await persistState({ sessionState, detectedSourceLanguage, captureStartedAtMs });
 }
 
 async function commitDetectedSourceLanguage(language: string): Promise<void> {
   detectedSourceLanguage = language;
-  await persistState({ sessionState, detectedSourceLanguage });
+  await persistState({ sessionState, detectedSourceLanguage, captureStartedAtMs });
+}
+
+async function commitCaptureStartedAtMs(value: number): Promise<void> {
+  captureStartedAtMs = value;
+  await persistState({ sessionState, detectedSourceLanguage, captureStartedAtMs });
 }
 
 export default defineBackground(() => {
@@ -63,6 +72,16 @@ export default defineBackground(() => {
 
   chrome.runtime.onMessage.addListener((message: unknown, sender) => {
     if (!isInternalSender(sender, chrome.runtime.id)) {
+      return;
+    }
+    if (isRuntimeMessage(message) && message.type === "VIDEO_TIME_SAMPLE") {
+      if (
+        sender.tab?.id !== undefined &&
+        sessionState.status !== "idle" &&
+        sender.tab.id === sessionState.tabId
+      ) {
+        videoTimeIndex.addSample(message.wallClockMs, message.videoSec);
+      }
       return;
     }
     if (!isRuntimeMessage(message)) {
@@ -124,6 +143,13 @@ async function startSession(message: StartFromPopupMessage): Promise<void> {
     });
     localSessionId = localSession.id;
     await commitDetectedSourceLanguage("unknown");
+
+    // Reset the video-time anchor BEFORE persisting the new session, so a
+    // service-worker eviction during startup can never leave the new session's
+    // state paired on disk with a stale captureStartedAtMs from a prior session
+    // (which would silently mis-align an early final).
+    videoTimeIndex.reset();
+    captureStartedAtMs = undefined;
 
     await commitSessionState(
       reduceSessionState(sessionState, {
@@ -255,6 +281,10 @@ async function handleSessionStarted(
     })
   );
 
+  if (message.captureStartedAtMs !== undefined) {
+    await commitCaptureStartedAtMs(message.captureStartedAtMs);
+  }
+
   await setBadge("ON");
 }
 
@@ -316,12 +346,23 @@ async function forwardServerEvent(message: ServerEventMessage): Promise<void> {
   }
 
   if (message.event.type === "final") {
+    const videoStartSec =
+      captureStartedAtMs !== undefined
+        ? videoTimeIndex.lookup(captureStartedAtMs + message.event.startTimeMs)
+        : undefined;
+    const videoEndSec =
+      captureStartedAtMs !== undefined
+        ? videoTimeIndex.lookup(captureStartedAtMs + message.event.endTimeMs)
+        : undefined;
+
     await historyStore.appendSegment(
       finalEventToSegment({
         localSessionId: message.localSessionId,
         event: message.event,
         sourceLanguage: detectedSourceLanguage,
-        targetLanguage: sessionState.targetLanguage
+        targetLanguage: sessionState.targetLanguage,
+        ...(videoStartSec !== undefined ? { videoStartSec } : {}),
+        ...(videoEndSec !== undefined ? { videoEndSec } : {})
       })
     );
   }

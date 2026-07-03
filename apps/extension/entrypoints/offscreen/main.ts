@@ -120,11 +120,13 @@ async function startSession(message: StartSessionMessage): Promise<void> {
     };
 
     await client.connect();
+    const captureStartedAtMs = Date.now();
     await pipeline.start();
 
     await chrome.runtime.sendMessage({
       type: "SESSION_STARTED",
-      localSessionId: message.localSessionId
+      localSessionId: message.localSessionId,
+      captureStartedAtMs
     } satisfies SessionStartedMessage);
   } catch (error) {
     if (activeSession?.localSessionId === message.localSessionId) {
