@@ -17,4 +17,10 @@ describe("compareSegmentId", () => {
     expect(compareSegmentId("garbage", "e1:seg-1")).toBeLessThan(0);
     expect(compareSegmentId("garbage", "also-garbage")).toBe(0);
   });
+
+  it("orders interpret (ast) ids the same way as pipeline (seg) ids", () => {
+    expect(compareSegmentId("e1:ast-1", "e1:ast-2")).toBeLessThan(0);
+    expect(compareSegmentId("e2:ast-1", "e1:ast-9")).toBeGreaterThan(0);
+    expect(compareSegmentId("e1:ast-3", "e1:ast-3")).toBe(0);
+  });
 });
