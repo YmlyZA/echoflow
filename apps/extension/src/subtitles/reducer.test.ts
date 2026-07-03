@@ -164,6 +164,37 @@ describe("reducer bounds finalized ids", () => {
   });
 });
 
+describe("reducer monotonic current line", () => {
+  it("does not flash back to an older final once a newer one is shown", () => {
+    let state = createInitialSubtitleState();
+    state = reduceSubtitleEvent(state, {
+      type: "final", segmentId: "e1:seg-2", sourceText: "two", translatedText: "二",
+      startTimeMs: 300, endTimeMs: 600,
+    });
+    const beforeOld = state.currentSegment;
+    // a slow-translated earlier final arrives AFTER seg-2 is shown
+    state = reduceSubtitleEvent(state, {
+      type: "final", segmentId: "e1:seg-1", sourceText: "one", translatedText: "一",
+      startTimeMs: 0, endTimeMs: 300,
+    });
+    expect(state.currentSegment).toEqual(beforeOld); // still showing seg-2
+    expect(state.finalizedSegmentIds).toContain("e1:seg-1"); // but seg-1 is tracked
+  });
+
+  it("still advances the current line to a newer final", () => {
+    let state = createInitialSubtitleState();
+    state = reduceSubtitleEvent(state, {
+      type: "final", segmentId: "e1:seg-1", sourceText: "one", translatedText: "一",
+      startTimeMs: 0, endTimeMs: 300,
+    });
+    state = reduceSubtitleEvent(state, {
+      type: "final", segmentId: "e1:seg-2", sourceText: "two", translatedText: "二",
+      startTimeMs: 300, endTimeMs: 600,
+    });
+    expect(state.currentSegment?.segmentId).toBe("e1:seg-2");
+  });
+});
+
 describe("reducer status events", () => {
   it("tracks providerConnection from status events", () => {
     let state = createInitialSubtitleState();
