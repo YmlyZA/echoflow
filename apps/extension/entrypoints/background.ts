@@ -144,6 +144,13 @@ async function startSession(message: StartFromPopupMessage): Promise<void> {
     localSessionId = localSession.id;
     await commitDetectedSourceLanguage("unknown");
 
+    // Reset the video-time anchor BEFORE persisting the new session, so a
+    // service-worker eviction during startup can never leave the new session's
+    // state paired on disk with a stale captureStartedAtMs from a prior session
+    // (which would silently mis-align an early final).
+    videoTimeIndex.reset();
+    captureStartedAtMs = undefined;
+
     await commitSessionState(
       reduceSessionState(sessionState, {
         type: "START_CONNECTING",
@@ -153,9 +160,6 @@ async function startSession(message: StartFromPopupMessage): Promise<void> {
         settings
       })
     );
-
-    videoTimeIndex.reset();
-    captureStartedAtMs = undefined;
 
     await ensureOffscreenDocument();
 
