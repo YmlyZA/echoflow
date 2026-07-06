@@ -1,6 +1,7 @@
 import {
   isInternalSender,
   isRuntimeMessage,
+  type CachedTranscriptMessage,
   type ConnectionStatusMessage,
   type RuntimeMessage,
   type SessionErrorMessage,
@@ -11,7 +12,10 @@ import {
   type StartSessionMessage,
   type StopSessionMessage
 } from "../src/messaging/messages";
-import { createHistoryStore } from "../src/history/historyStore";
+import {
+  createHistoryStore,
+  type HistorySegmentRecord
+} from "../src/history/historyStore";
 import { finalEventToSegment } from "../src/history/segmentMapping";
 import { validateSettings } from "../src/settings/settings";
 import {
@@ -23,6 +27,7 @@ import { loadPersistedState, persistState } from "../src/session/sessionStore";
 import { createSerialQueue } from "../src/messaging/serialQueue";
 import { isMessageForActiveSession } from "../src/session/activeSession";
 import { createVideoTimeIndex } from "../src/subtitles/videoTimeIndex";
+import { videoIdentity } from "../src/subtitles/videoIdentity";
 
 const OFFSCREEN_DOCUMENT_PATH = "offscreen.html";
 const CONTENT_SCRIPT_PATH = "content-scripts/content.js";
@@ -135,11 +140,13 @@ async function startSession(message: StartFromPopupMessage): Promise<void> {
     await injectRuntimeContentScript(tabId);
 
     const tab = await chrome.tabs.get(tabId).catch(() => undefined);
+    const videoKey = tab?.url ? videoIdentity(tab.url) : undefined;
 
     const localSession = await historyStore.createLocalSession({
       targetLanguage: settings.targetLanguage,
       ...(tab?.url ? { videoUrl: tab.url } : {}),
-      ...(tab?.title ? { videoTitle: tab.title } : {})
+      ...(tab?.title ? { videoTitle: tab.title } : {}),
+      ...(videoKey !== undefined ? { videoKey } : {})
     });
     localSessionId = localSession.id;
     await commitDetectedSourceLanguage("unknown");
@@ -179,6 +186,19 @@ async function startSession(message: StartFromPopupMessage): Promise<void> {
       streamId,
       settings
     } satisfies StartSessionMessage);
+
+    if (videoKey !== undefined) {
+      try {
+        const cached = await historyStore.getSegmentsForVideo(videoKey, localSession.id);
+        if (cached.length > 0) {
+          await sendCachedTranscript(tabId, localSession.id, cached);
+        }
+      } catch (error) {
+        // Cache reuse is best-effort: a history-read failure must not abort an
+        // otherwise-successful session (which would leave offscreen capturing).
+        console.warn("EchoFlow: failed to load cached transcript", error);
+      }
+    }
   } catch (error) {
     await handleSessionError({
       type: "SESSION_ERROR",
@@ -392,6 +412,38 @@ async function forwardConnectionStatus(
 
   await setBadge(message.status === "reconnecting" ? "..." : "ON");
   await sendMessageToTab(sessionState.tabId, message);
+}
+
+async function sendCachedTranscript(
+  tabId: number,
+  localSessionId: string,
+  segments: HistorySegmentRecord[]
+): Promise<void> {
+  const entries = segments
+    .filter((s) => s.videoStartSec !== undefined && s.videoEndSec !== undefined)
+    .map((s) => ({
+      videoStartSec: s.videoStartSec as number,
+      videoEndSec: s.videoEndSec as number,
+      segment: {
+        segmentId: s.segmentId,
+        sourceText: s.sourceText,
+        translatedText: s.translatedText,
+        status: "final" as const,
+        ...(s.speakerId !== undefined ? { speakerId: s.speakerId } : {})
+      }
+    }));
+  if (entries.length === 0) {
+    return;
+  }
+  try {
+    await chrome.tabs.sendMessage(tabId, {
+      type: "CACHED_TRANSCRIPT",
+      localSessionId,
+      entries
+    } satisfies CachedTranscriptMessage);
+  } catch {
+    // Tab closed/navigated — nothing to seed.
+  }
 }
 
 async function injectRuntimeContentScript(tabId: number): Promise<void> {

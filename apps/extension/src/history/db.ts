@@ -19,6 +19,10 @@ export class EchoFlowHistoryDatabase extends Dexie {
     this.version(2).stores({
       sessions: "id, startedAt, updatedAt, remoteSessionId, syncStatus, videoUrl"
     });
+    this.version(3).stores({
+      sessions:
+        "id, startedAt, updatedAt, remoteSessionId, syncStatus, videoUrl, videoKey"
+    });
   }
 }
 
@@ -59,6 +63,9 @@ export function createDexieHistoryPersistence(
         .sortBy("startTimeMs");
 
       return segments;
+    },
+    async getSessionsByVideoKey(videoKey) {
+      return database.sessions.where("videoKey").equals(videoKey).toArray();
     }
   };
 }

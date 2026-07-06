@@ -1,5 +1,6 @@
 import type { ServerEvent, SubtitleMode } from "@echoflow/protocol";
 import type { ExtensionSettings } from "../settings/settings";
+import type { TimelineEntry } from "../subtitles/subtitleTimeline";
 
 export type RuntimeMessage =
   | StartSessionMessage
@@ -11,7 +12,8 @@ export type RuntimeMessage =
   | ServerEventMessage
   | OffscreenReadyMessage
   | ConnectionStatusMessage
-  | VideoTimeSampleMessage;
+  | VideoTimeSampleMessage
+  | CachedTranscriptMessage;
 
 export interface StartSessionMessage {
   type: "START_SESSION";
@@ -78,6 +80,12 @@ export interface VideoTimeSampleMessage {
   videoSec: number;
 }
 
+export interface CachedTranscriptMessage {
+  type: "CACHED_TRANSCRIPT";
+  localSessionId: string;
+  entries: TimelineEntry[];
+}
+
 export function isRuntimeMessage(message: unknown): message is RuntimeMessage {
   if (!isRecord(message) || typeof message.type !== "string") {
     return false;
@@ -93,7 +101,8 @@ export function isRuntimeMessage(message: unknown): message is RuntimeMessage {
     "SERVER_EVENT",
     "OFFSCREEN_READY",
     "CONNECTION_STATUS",
-    "VIDEO_TIME_SAMPLE"
+    "VIDEO_TIME_SAMPLE",
+    "CACHED_TRANSCRIPT"
   ].includes(message.type);
 }
 

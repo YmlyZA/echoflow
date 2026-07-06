@@ -21,6 +21,7 @@ export interface HistorySessionRecord {
   error?: HistorySessionError;
   videoUrl?: string;
   videoTitle?: string;
+  videoKey?: string;
 }
 
 export type HistorySegmentRecord = SubtitleSegment & {
@@ -42,6 +43,7 @@ export interface CreateLocalSessionInput {
   randomSuffix?: () => string;
   videoUrl?: string;
   videoTitle?: string;
+  videoKey?: string;
 }
 
 export interface RecordSessionErrorInput {
@@ -60,6 +62,7 @@ export interface HistoryPersistence {
   ): Promise<void>;
   putSegment(segment: HistorySegmentRecord): Promise<void>;
   getSegments(sessionId: string): Promise<HistorySegmentRecord[]>;
+  getSessionsByVideoKey(videoKey: string): Promise<HistorySessionRecord[]>;
 }
 
 export interface HistoryStore {
@@ -80,6 +83,10 @@ export interface HistoryStore {
   ): Promise<void>;
   exportSessionAsText(sessionId: string): Promise<string>;
   exportSessionAsJson(sessionId: string): Promise<string>;
+  getSegmentsForVideo(
+    videoKey: string,
+    excludeSessionId: string
+  ): Promise<HistorySegmentRecord[]>;
 }
 
 export function createHistoryStore(
@@ -114,6 +121,10 @@ export function createHistoryStore(
 
       if (input.videoTitle) {
         session.videoTitle = input.videoTitle;
+      }
+
+      if (input.videoKey) {
+        session.videoKey = input.videoKey;
       }
 
       await persistence.addSession(session);
@@ -187,6 +198,19 @@ export function createHistoryStore(
       );
 
       return JSON.stringify({ session, segments: enriched }, null, 2);
+    },
+    async getSegmentsForVideo(videoKey, excludeSessionId) {
+      const sessions = (await persistence.getSessionsByVideoKey(videoKey))
+        .filter((s) => s.id !== excludeSessionId)
+        .sort((a, b) => b.startedAt - a.startedAt);
+      const mostRecent = sessions[0];
+      if (mostRecent === undefined) {
+        return [];
+      }
+      const segments = await persistence.getSegments(mostRecent.id);
+      return segments.filter(
+        (s) => s.videoStartSec !== undefined && s.videoEndSec !== undefined
+      );
     }
   };
 }
@@ -229,6 +253,11 @@ export function createInMemoryHistoryPersistence(): HistoryPersistence {
         .filter((segment) => segment.sessionId === sessionId)
         .sort((left, right) => left.startTimeMs - right.startTimeMs)
         .map((segment) => ({ ...segment }));
+    },
+    async getSessionsByVideoKey(videoKey) {
+      return Array.from(sessions.values())
+        .filter((session) => session.videoKey === videoKey)
+        .map(cloneSession);
     }
   };
 }
