@@ -42,6 +42,16 @@ describe("isRuntimeMessage", () => {
     ).toBe(true);
   });
 
+  it("accepts a CACHED_TRANSCRIPT message", () => {
+    expect(
+      isRuntimeMessage({
+        type: "CACHED_TRANSCRIPT",
+        localSessionId: "local-1",
+        entries: [{ videoStartSec: 1, videoEndSec: 2, segment: { segmentId: "e1:seg-1", sourceText: "x", translatedText: "y", status: "final" } }]
+      })
+    ).toBe(true);
+  });
+
   it("accepts a SERVER_EVENT carrying final video times", () => {
     expect(
       isRuntimeMessage({
