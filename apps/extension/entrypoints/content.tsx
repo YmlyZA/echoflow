@@ -208,7 +208,7 @@ function EchoFlowMount({ onSessionEnded }: { onSessionEnded: () => void }) {
       : null;
   const displayedSegment = chooseDisplaySegment({
     currentTimeSec,
-    maxCapturedVideoSec: timelineRef.current.maxVideoEndSec() ?? null,
+    liveEdgeSec: timelineRef.current.maxVideoEndSec() ?? null,
     liveSegment: subtitleState.currentSegment,
     replaySegment
   });
