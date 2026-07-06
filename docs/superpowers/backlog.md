@@ -49,7 +49,7 @@ four slices, each spec → plan → subagent-driven build → PR, all merged beh
 **History-as-user-data arc (local, video-aware — no accounts):**
 - ✅ **SP1a — foundation** (complete history + video identity) — shipped, see above.
 - ✅ **SP1b — capture→video-time alignment** (PR #28) → `specs/2026-07-03-video-time-alignment-design.md`. The content script samples the page `<video>`'s `currentTime` (`VIDEO_TIME_SAMPLE`, throttled ~4 Hz + on seek/play/pause); the offscreen reports `captureStartedAtMs` on `SESSION_STARTED`; the background correlates each final's spoken wall-clock (`captureStartedAtMs + startTimeMs`) against a bounded `videoTimeIndex` (nearest-sample, seek-safe) and stores `videoStartSec`/`videoEndSec` on the history segment (client-side only — wire `SubtitleSegment` unchanged). Best-effort: no `<video>`/no samples → finals recorded without video times.
-- ⬜ **SP2 — scrub-sync playback**: the overlay follows `video.currentTime` (incl. seeks) from stored video-time.
+- ✅ **SP2 — scrub-sync playback** (PR #29) → `specs/2026-07-06-scrub-sync-playback-design.md`. The content overlay follows `video.currentTime`: the background forwards each final's `videoStartSec`/`videoEndSec` on `SERVER_EVENT`, the content builds a `subtitleTimeline`, and `chooseDisplaySegment` picks live-vs-replay — scrubbing back within the captured range shows the recorded line, the live edge shows the streaming line, a silence gap clears. Current-session range only (cross-session load is SP3).
 - ⬜ **SP3 — per-video cache reuse**: revisiting a known `videoUrl` loads its transcript; identity normalization / provider `videoId` (e.g. YouTube).
 - ⬜ **SP4 — accounts / cloud sync** (uses the existing `syncStatus`) — separate product decision, deferred.
 

@@ -42,6 +42,19 @@ describe("isRuntimeMessage", () => {
     ).toBe(true);
   });
 
+  it("accepts a SERVER_EVENT carrying final video times", () => {
+    expect(
+      isRuntimeMessage({
+        type: "SERVER_EVENT",
+        localSessionId: "local-1",
+        mode: "pipeline",
+        event: { type: "final", segmentId: "e1:seg-1", sourceText: "x", translatedText: "y", startTimeMs: 0, endTimeMs: 1 },
+        videoStartSec: 12.5,
+        videoEndSec: 13.0,
+      })
+    ).toBe(true);
+  });
+
   it("rejects unknown message types", () => {
     expect(isRuntimeMessage({ type: "NOPE" })).toBe(false);
   });

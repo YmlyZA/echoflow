@@ -345,12 +345,15 @@ async function forwardServerEvent(message: ServerEventMessage): Promise<void> {
     });
   }
 
+  let videoStartSec: number | undefined = undefined;
+  let videoEndSec: number | undefined = undefined;
+
   if (message.event.type === "final") {
-    const videoStartSec =
+    videoStartSec =
       captureStartedAtMs !== undefined
         ? videoTimeIndex.lookup(captureStartedAtMs + message.event.startTimeMs)
         : undefined;
-    const videoEndSec =
+    videoEndSec =
       captureStartedAtMs !== undefined
         ? videoTimeIndex.lookup(captureStartedAtMs + message.event.endTimeMs)
         : undefined;
@@ -371,7 +374,9 @@ async function forwardServerEvent(message: ServerEventMessage): Promise<void> {
     type: "SERVER_EVENT",
     localSessionId: message.localSessionId,
     mode: sessionState.mode,
-    event: message.event
+    event: message.event,
+    ...(videoStartSec !== undefined ? { videoStartSec } : {}),
+    ...(videoEndSec !== undefined ? { videoEndSec } : {})
   });
 }
 

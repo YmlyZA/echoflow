@@ -12,12 +12,14 @@ import {
 import { SubtitleOverlay } from "../src/overlay/SubtitleOverlay";
 import { deriveOverlayStatus } from "../src/overlay/overlayStatus";
 import { DEFAULT_SUBTITLE_FONT_SIZE } from "../src/settings/settings";
+import { chooseDisplaySegment } from "../src/subtitles/chooseDisplaySegment";
 import { isStopForCurrentSession } from "../src/subtitles/overlaySession";
 import {
   createInitialSubtitleState,
   reduceSubtitleEvent,
   type TransientSubtitleError
 } from "../src/subtitles/reducer";
+import { createSubtitleTimeline } from "../src/subtitles/subtitleTimeline";
 
 function EchoFlowMount({ onSessionEnded }: { onSessionEnded: () => void }) {
   const [subtitleState, dispatchSubtitleEvent] = useReducer(
@@ -38,6 +40,8 @@ function EchoFlowMount({ onSessionEnded }: { onSessionEnded: () => void }) {
     null
   );
   const currentSessionIdRef = useRef<string | null>(null);
+  const timelineRef = useRef(createSubtitleTimeline());
+  const [currentTimeSec, setCurrentTimeSec] = useState<number | null>(null);
 
   useEffect(() => {
     function handleRuntimeMessage(
@@ -57,6 +61,23 @@ function EchoFlowMount({ onSessionEnded }: { onSessionEnded: () => void }) {
         setMode(message.mode);
         setSessionError(null);
         dispatchSubtitleEvent(message.event);
+        if (
+          message.event.type === "final" &&
+          message.videoStartSec !== undefined &&
+          message.videoEndSec !== undefined
+        ) {
+          timelineRef.current.add({
+            videoStartSec: message.videoStartSec,
+            videoEndSec: message.videoEndSec,
+            segment: {
+              segmentId: message.event.segmentId,
+              sourceText: message.event.sourceText,
+              translatedText: message.event.translatedText,
+              status: "final",
+              ...(message.event.speakerId !== undefined ? { speakerId: message.event.speakerId } : {})
+            }
+          });
+        }
         return;
       }
 
@@ -103,6 +124,7 @@ function EchoFlowMount({ onSessionEnded }: { onSessionEnded: () => void }) {
         return;
       }
       lastSentAt = wallClockMs;
+      setCurrentTimeSec(video.currentTime);
       void chrome.runtime.sendMessage({
         type: "VIDEO_TIME_SAMPLE",
         wallClockMs,
@@ -180,10 +202,21 @@ function EchoFlowMount({ onSessionEnded }: { onSessionEnded: () => void }) {
     providerReconnecting: subtitleState.providerConnection === "reconnecting"
   });
 
+  const replaySegment =
+    currentTimeSec !== null
+      ? timelineRef.current.segmentAt(currentTimeSec)?.segment ?? null
+      : null;
+  const displayedSegment = chooseDisplaySegment({
+    currentTimeSec,
+    maxCapturedVideoSec: timelineRef.current.maxVideoEndSec() ?? null,
+    liveSegment: subtitleState.currentSegment,
+    replaySegment
+  });
+
   let speaker: { number: number; color: string } | null = null;
-  if (subtitleState.seenSpeakerIds.length >= 2 && subtitleState.currentSegment?.speakerId) {
+  if (subtitleState.seenSpeakerIds.length >= 2 && displayedSegment?.speakerId) {
     const number = assignSpeakerNumbers(subtitleState.seenSpeakerIds).get(
-      subtitleState.currentSegment.speakerId
+      displayedSegment.speakerId
     );
     if (number) {
       speaker = { number, color: speakerColor(number) };
@@ -192,7 +225,7 @@ function EchoFlowMount({ onSessionEnded }: { onSessionEnded: () => void }) {
 
   return (
     <SubtitleOverlay
-      segment={subtitleState.currentSegment}
+      segment={displayedSegment}
       transientError={subtitleState.transientError ?? sessionError}
       lifecycle={lifecycle}
       mode={mode}
