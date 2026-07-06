@@ -42,6 +42,7 @@ function EchoFlowMount({ onSessionEnded }: { onSessionEnded: () => void }) {
   const currentSessionIdRef = useRef<string | null>(null);
   const timelineRef = useRef(createSubtitleTimeline());
   const [currentTimeSec, setCurrentTimeSec] = useState<number | null>(null);
+  const [liveEdgeSec, setLiveEdgeSec] = useState<number | null>(null);
 
   useEffect(() => {
     function handleRuntimeMessage(
@@ -77,7 +78,19 @@ function EchoFlowMount({ onSessionEnded }: { onSessionEnded: () => void }) {
               ...(message.event.speakerId !== undefined ? { speakerId: message.event.speakerId } : {})
             }
           });
+          setLiveEdgeSec((prev) =>
+            prev === null ? message.videoEndSec! : Math.max(prev, message.videoEndSec!)
+          );
         }
+        return;
+      }
+
+      if (message.type === "CACHED_TRANSCRIPT") {
+        currentSessionIdRef.current = message.localSessionId;
+        for (const entry of message.entries) {
+          timelineRef.current.add(entry);
+        }
+        setHasSignal(true);
         return;
       }
 
@@ -208,7 +221,7 @@ function EchoFlowMount({ onSessionEnded }: { onSessionEnded: () => void }) {
       : null;
   const displayedSegment = chooseDisplaySegment({
     currentTimeSec,
-    liveEdgeSec: timelineRef.current.maxVideoEndSec() ?? null,
+    liveEdgeSec,
     liveSegment: subtitleState.currentSegment,
     replaySegment
   });
