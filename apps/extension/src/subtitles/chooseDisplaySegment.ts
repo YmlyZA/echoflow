@@ -1,8 +1,12 @@
 import type { SubtitleDisplaySegment } from "./reducer";
 
-// Symmetric tolerance (seconds) around the live capture front: within this of the
-// front (ahead by ASR lag, or slightly behind), the user is watching live.
-const EDGE_BAND_SEC = 4;
+// How far the playhead can LEAD the last confirmed final (ASR latency + an
+// in-progress sentence) and still count as watching live. A larger gap means the
+// user jumped forward into cached territory.
+const LIVE_AHEAD_SEC = 30;
+// How far the playhead can TRAIL the live front (a small back-scrub) and still
+// count as live; a larger gap is a scrub back into recorded content.
+const LIVE_BEHIND_SEC = 4;
 
 /**
  * Picks what the overlay shows. `liveEdgeSec` is the current session's live capture
@@ -24,7 +28,10 @@ export function chooseDisplaySegment(input: {
     // otherwise the streaming line (partials at the start of capture).
     return input.replaySegment ?? input.liveSegment;
   }
-  if (Math.abs(input.currentTimeSec - input.liveEdgeSec) <= EDGE_BAND_SEC) {
+  if (
+    input.currentTimeSec >= input.liveEdgeSec - LIVE_BEHIND_SEC &&
+    input.currentTimeSec <= input.liveEdgeSec + LIVE_AHEAD_SEC
+  ) {
     return input.liveSegment;
   }
   return input.replaySegment;

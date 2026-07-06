@@ -15,9 +15,13 @@ describe("chooseDisplaySegment", () => {
     expect(chooseDisplaySegment({ currentTimeSec: 30, liveEdgeSec: null, liveSegment: live, replaySegment: null })).toBe(live);
   });
 
-  it("shows the live segment within the band of the live edge", () => {
-    expect(chooseDisplaySegment({ currentTimeSec: 102, liveEdgeSec: 100, liveSegment: live, replaySegment: replay })).toBe(live); // ahead by ASR lag
-    expect(chooseDisplaySegment({ currentTimeSec: 98, liveEdgeSec: 100, liveSegment: live, replaySegment: replay })).toBe(live);
+  it("shows the live segment within the asymmetric band of the live edge", () => {
+    expect(chooseDisplaySegment({ currentTimeSec: 98, liveEdgeSec: 100, liveSegment: live, replaySegment: replay })).toBe(live); // small trail
+    expect(chooseDisplaySegment({ currentTimeSec: 120, liveEdgeSec: 100, liveSegment: live, replaySegment: replay })).toBe(live); // modest lead, within 30
+  });
+
+  it("keeps showing the live segment when a long in-progress sentence makes the playhead lead the live edge by ~6s (regression: fails under the old symmetric 4s band)", () => {
+    expect(chooseDisplaySegment({ currentTimeSec: 106, liveEdgeSec: 100, liveSegment: live, replaySegment: replay })).toBe(live);
   });
 
   it("shows the replay segment when scrubbed back out of the band", () => {
