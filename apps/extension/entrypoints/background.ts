@@ -188,9 +188,15 @@ async function startSession(message: StartFromPopupMessage): Promise<void> {
     } satisfies StartSessionMessage);
 
     if (videoKey !== undefined) {
-      const cached = await historyStore.getSegmentsForVideo(videoKey, localSession.id);
-      if (cached.length > 0) {
-        await sendCachedTranscript(tabId, localSession.id, cached);
+      try {
+        const cached = await historyStore.getSegmentsForVideo(videoKey, localSession.id);
+        if (cached.length > 0) {
+          await sendCachedTranscript(tabId, localSession.id, cached);
+        }
+      } catch (error) {
+        // Cache reuse is best-effort: a history-read failure must not abort an
+        // otherwise-successful session (which would leave offscreen capturing).
+        console.warn("EchoFlow: failed to load cached transcript", error);
       }
     }
   } catch (error) {
