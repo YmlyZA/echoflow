@@ -58,6 +58,8 @@ export interface ServerEventMessage {
   localSessionId: string;
   mode: SubtitleMode;
   event: ServerEvent;
+  videoStartSec?: number;
+  videoEndSec?: number;
 }
 
 export interface OffscreenReadyMessage {
