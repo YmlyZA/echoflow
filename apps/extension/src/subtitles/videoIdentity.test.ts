@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import { videoIdentity } from "./videoIdentity";
 
 describe("videoIdentity", () => {
-  it("canonicalizes YouTube watch/short/embed URLs to the same key", () => {
+  it("canonicalizes YouTube watch/short/embed/shorts URLs to the same key", () => {
     const key = "youtube:dQw4w9WgXcQ";
     expect(videoIdentity("https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s")).toBe(key);
     expect(videoIdentity("https://youtu.be/dQw4w9WgXcQ?si=abc")).toBe(key);
+    expect(videoIdentity("https://youtu.be/dQw4w9WgXcQ/")).toBe(key); // trailing slash
     expect(videoIdentity("https://www.youtube.com/embed/dQw4w9WgXcQ")).toBe(key);
+    expect(videoIdentity("https://www.youtube.com/shorts/dQw4w9WgXcQ")).toBe(key);
+    expect(videoIdentity("https://m.youtube.com/watch?v=dQw4w9WgXcQ")).toBe(key);
   });
 
   it("strips volatile params and the hash for a generic video page", () => {
