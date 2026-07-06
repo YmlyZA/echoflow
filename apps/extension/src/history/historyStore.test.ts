@@ -199,6 +199,27 @@ describe("history store", () => {
     const json = JSON.parse(await store.exportSessionAsJson(session.id));
     expect(json.segments[1]).toMatchObject({ speakerId: "spk-b", speakerNumber: 2 });
   });
+
+  it("returns the most recent prior session's timed segments for a video", async () => {
+    const store = createHistoryStore(createInMemoryHistoryPersistence());
+    const older = await store.createLocalSession({ now: () => 1, randomSuffix: () => "a", videoKey: "youtube:X" });
+    const newer = await store.createLocalSession({ now: () => 2, randomSuffix: () => "b", videoKey: "youtube:X" });
+    const current = await store.createLocalSession({ now: () => 3, randomSuffix: () => "c", videoKey: "youtube:X" });
+
+    await store.appendSegment({ sessionId: older.id, segmentId: "s1", startTimeMs: 0, endTimeMs: 1, sourceLanguage: "en", targetLanguage: "zh-CN", sourceText: "old", translatedText: "旧", status: "final", videoStartSec: 1, videoEndSec: 2 });
+    await store.appendSegment({ sessionId: newer.id, segmentId: "s1", startTimeMs: 0, endTimeMs: 1, sourceLanguage: "en", targetLanguage: "zh-CN", sourceText: "new-timed", translatedText: "新", status: "final", videoStartSec: 10, videoEndSec: 11 });
+    await store.appendSegment({ sessionId: newer.id, segmentId: "s2", startTimeMs: 0, endTimeMs: 1, sourceLanguage: "en", targetLanguage: "zh-CN", sourceText: "new-untimed", translatedText: "无", status: "final" });
+
+    const cached = await store.getSegmentsForVideo("youtube:X", current.id);
+    // most recent prior session is `newer`; only its timed segment is returned
+    expect(cached.map((s) => s.sourceText)).toEqual(["new-timed"]);
+  });
+
+  it("returns nothing when no prior session matches the video", async () => {
+    const store = createHistoryStore(createInMemoryHistoryPersistence());
+    const current = await store.createLocalSession({ now: () => 1, randomSuffix: () => "a", videoKey: "youtube:Y" });
+    expect(await store.getSegmentsForVideo("youtube:Y", current.id)).toEqual([]);
+  });
 });
 
 function makeSegment(
