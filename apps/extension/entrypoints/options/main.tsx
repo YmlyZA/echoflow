@@ -34,6 +34,11 @@ import { deriveSyncStatusView } from "../../src/sync/syncStatusView";
 import { SyncSection } from "../../src/sync/SyncSection";
 import { SyncStatusBadge } from "../../src/sync/SyncStatusBadge";
 import { LAST_SYNC_STORAGE_KEY } from "../../src/sync/syncStorageKeys";
+import {
+  loadPersistedState,
+  SESSION_STATE_STORAGE_KEY,
+  type PersistedSessionState
+} from "../../src/session/sessionStore";
 
 const historyStore = createHistoryStore();
 
@@ -380,6 +385,7 @@ function HistoryPanel({ syncAvailable }: { syncAvailable: boolean | null }) {
   const [historyError, setHistoryError] = useState("");
   const [lastSyncAtMs, setLastSyncAtMs] = useState<number | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -427,6 +433,37 @@ function HistoryPanel({ syncAvailable }: { syncAvailable: boolean | null }) {
     };
     // refreshSessions only touches state setters; the first instance is fine.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const applySessionState = (state: PersistedSessionState) => {
+      setActiveSessionId(
+        state.sessionState.status !== "idle" ? state.sessionState.localSessionId : null
+      );
+    };
+    void loadPersistedState()
+      .then((state) => {
+        if (mounted) applySessionState(state);
+      })
+      .catch(() => {});
+
+    const onSessionChanged = (
+      changes: Record<string, chrome.storage.StorageChange>,
+      area: string
+    ) => {
+      if (area !== "session" || !(SESSION_STATE_STORAGE_KEY in changes)) {
+        return;
+      }
+      void loadPersistedState()
+        .then((state) => applySessionState(state))
+        .catch(() => {});
+    };
+    chrome.storage.onChanged.addListener(onSessionChanged);
+    return () => {
+      mounted = false;
+      chrome.storage.onChanged.removeListener(onSessionChanged);
+    };
   }, []);
 
   useEffect(() => {
@@ -511,7 +548,7 @@ function HistoryPanel({ syncAvailable }: { syncAvailable: boolean | null }) {
       </div>
 
       <SyncSection
-        view={deriveSyncStatusView({ syncAvailable, lastSyncAtMs, sessions })}
+        view={deriveSyncStatusView({ syncAvailable, lastSyncAtMs, sessions, activeSessionId })}
         syncing={syncing}
         onSyncNow={syncNow}
       />
