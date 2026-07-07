@@ -74,20 +74,30 @@ async function run(options: SyncEngineOptions): Promise<SyncResult> {
   }
 
   try {
-    await pushOutbox(options, transport, result);
+    const pushError = await pushOutbox(options, transport, result);
     await pullChanges(options, transport, result);
+    if (pushError !== null) {
+      result.status = "failed";
+      result.error = pushError;
+    }
   } catch (error) {
     result.status = "failed";
-    result.error = error instanceof Error ? error.message : String(error);
+    result.error = result.error ?? (error instanceof Error ? error.message : String(error));
   }
   return result;
 }
 
+/**
+ * Pushes every outbox session. A single session's push failure (e.g. an
+ * oversized payload permanently rejected) must not starve the rest of the
+ * outbox or block pull; the failing session is marked and skipped, and the
+ * loop continues. Returns the first error message encountered, or null.
+ */
 async function pushOutbox(
   options: SyncEngineOptions,
   transport: SyncTransport,
   result: SyncResult
-): Promise<void> {
+): Promise<string | null> {
   const sessions = await options.persistence.listSessions();
   const outbox = sessions.filter(
     (session) =>
@@ -95,20 +105,26 @@ async function pushOutbox(
       !(options.isSessionActive?.(session.id) ?? false)
   );
 
+  let firstError: string | null = null;
+
   for (const session of outbox) {
     const segments = await options.persistence.getSegments(session.id);
     try {
       await transport.push(toPushRequest(session, segments));
     } catch (error) {
-      // Server likely unreachable: mark, stop pushing, skip pull (it would
-      // fail the same way). The next trigger retries.
+      // One session failing (e.g. an oversized payload) must not starve the
+      // rest of the outbox or block pull — mark it and move on; the next
+      // trigger retries it.
       await options.persistence.updateSession(session.id, { syncStatus: "failed" });
-      throw error;
+      firstError = firstError ?? (error instanceof Error ? error.message : String(error));
+      continue;
     }
     await options.persistence.updateSession(session.id, { syncStatus: "synced" });
     result.pushedSessions += 1;
     result.pushedSegments += segments.length;
   }
+
+  return firstError;
 }
 
 function toPushRequest(

@@ -21,8 +21,7 @@ import { finalEventToSegment } from "../src/history/segmentMapping";
 import { createSyncEngine, type SyncCursorStore } from "../src/sync/syncEngine";
 import { createFetchSyncTransport } from "../src/sync/syncTransport";
 import { fetchCapabilities } from "../src/settings/capabilitiesClient";
-import { loadSettings } from "../src/settings/settings";
-import { validateSettings } from "../src/settings/settings";
+import { loadSettings, validateSettings } from "../src/settings/settings";
 import {
   createInitialSessionState,
   reduceSessionState,
@@ -130,8 +129,12 @@ export default defineBackground(() => {
     }
   });
 
-  void chrome.alarms.create(SYNC_ALARM_NAME, {
-    periodInMinutes: SYNC_ALARM_PERIOD_MINUTES
+  void chrome.alarms.get(SYNC_ALARM_NAME).then((existing) => {
+    if (existing === undefined) {
+      void chrome.alarms.create(SYNC_ALARM_NAME, {
+        periodInMinutes: SYNC_ALARM_PERIOD_MINUTES
+      });
+    }
   });
 
   chrome.alarms.onAlarm.addListener((alarm) => {

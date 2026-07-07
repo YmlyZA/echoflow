@@ -37,6 +37,7 @@ function makeTransport(pullPages: SyncPullResponse[] = []): {
   pushes: SyncPushRequest[];
   pullSinces: number[];
   failPush: boolean;
+  failPushOnce: boolean;
 } {
   const pages = [...pullPages];
   // Single mutable object so tests can flip failPush after construction
@@ -45,11 +46,16 @@ function makeTransport(pullPages: SyncPullResponse[] = []): {
     pushes: [] as SyncPushRequest[],
     pullSinces: [] as number[],
     failPush: false,
+    failPushOnce: false,
     transport: undefined as unknown as SyncTransport
   };
   bundle.transport = {
     async push(request): Promise<SyncPushResponse> {
       if (bundle.failPush) {
+        throw new Error("sync_push_failed_503");
+      }
+      if (bundle.failPushOnce) {
+        bundle.failPushOnce = false;
         throw new Error("sync_push_failed_503");
       }
       bundle.pushes.push(request);
@@ -156,7 +162,29 @@ describe("syncEngine push", () => {
     expect(result.status).toBe("failed");
     expect(result.error).toBe("sync_push_failed_503");
     expect((await persistence.getSession("s1"))?.syncStatus).toBe("failed");
-    expect(bundle.pullSinces).toHaveLength(0); // pull skipped after push failure
+    expect(bundle.pullSinces).toHaveLength(1); // pull is always attempted now
+  });
+
+  it("does not let one failing session starve the outbox or block pull", async () => {
+    const persistence = createInMemoryHistoryPersistence();
+    await persistence.addSession(session("s1", "pending"));
+    await persistence.addSession(session("s2", "pending"));
+    const bundle = makeTransport();
+    bundle.failPushOnce = true;
+
+    const engine = createSyncEngine({
+      persistence,
+      cursorStore: makeCursorStore(),
+      getTransport: async () => bundle.transport
+    });
+    const result = await engine.syncNow();
+
+    expect((await persistence.getSession("s1"))?.syncStatus).toBe("failed");
+    expect((await persistence.getSession("s2"))?.syncStatus).toBe("synced");
+    expect(result.status).toBe("failed");
+    expect(result.error).toBe("sync_push_failed_503");
+    expect(result.pushedSessions).toBe(1);
+    expect(bundle.pullSinces).toHaveLength(1);
   });
 });
 
