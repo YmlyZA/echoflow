@@ -60,6 +60,8 @@ export interface HistoryPersistence {
     sessionId: string,
     changes: Partial<HistorySessionRecord>
   ): Promise<void>;
+  /** Blind upsert (sync pull-apply). addSession stays create-only. */
+  putSession(session: HistorySessionRecord): Promise<void>;
   putSegment(segment: HistorySegmentRecord): Promise<void>;
   getSegments(sessionId: string): Promise<HistorySegmentRecord[]>;
   getSessionsByVideoKey(videoKey: string): Promise<HistorySessionRecord[]>;
@@ -77,6 +79,11 @@ export interface HistoryStore {
     sessionId: string,
     error: RecordSessionErrorInput
   ): Promise<void>;
+  /**
+   * Device-local sync-state change. Deliberately does NOT bump updatedAt —
+   * updatedAt is the content clock that feeds sync LWW.
+   */
+  setSessionSyncStatus(sessionId: string, status: SyncStatus): Promise<void>;
   updateSessionLanguages(
     sessionId: string,
     changes: { sourceLanguage?: string; targetLanguage?: string; updatedAt?: number }
@@ -156,9 +163,11 @@ export function createHistoryStore(
           message: error.message,
           occurredAt
         },
-        syncStatus: "failed",
         updatedAt: occurredAt
       });
+    },
+    async setSessionSyncStatus(sessionId, status) {
+      await persistence.updateSession(sessionId, { syncStatus: status });
     },
     async updateSessionLanguages(sessionId, changes) {
       const updatedAt = changes.updatedAt ?? Date.now();
@@ -244,6 +253,9 @@ export function createInMemoryHistoryPersistence(): HistoryPersistence {
         ...session,
         ...changes
       });
+    },
+    async putSession(session) {
+      sessions.set(session.id, cloneSession(session));
     },
     async putSegment(segment) {
       segments.set(getSegmentKey(segment), { ...segment });

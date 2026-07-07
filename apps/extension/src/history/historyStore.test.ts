@@ -95,7 +95,7 @@ describe("history store", () => {
         message: "Realtime connection closed",
         occurredAt: 25
       },
-      syncStatus: "failed",
+      syncStatus: "local-only",
       updatedAt: 25
     });
   });
@@ -251,5 +251,51 @@ describe("updateSessionLanguages", () => {
     const updated = await store.getSession(session.id);
     expect(updated?.sourceLanguage).toBe("en");
     expect(updated?.updatedAt).toBe(2000);
+  });
+});
+
+describe("sync support", () => {
+  it("recordSessionError leaves syncStatus untouched", async () => {
+    const persistence = createInMemoryHistoryPersistence();
+    const store = createHistoryStore(persistence);
+    const session = await store.createLocalSession({ startedAt: 1000 });
+
+    await store.recordSessionError(session.id, {
+      code: "capture_failed",
+      message: "boom",
+      occurredAt: 2000
+    });
+
+    const updated = await store.getSession(session.id);
+    expect(updated?.syncStatus).toBe("local-only");
+    expect(updated?.error?.code).toBe("capture_failed");
+  });
+
+  it("putSession inserts a new session and overwrites an existing one", async () => {
+    const persistence = createInMemoryHistoryPersistence();
+    const record = {
+      id: "local-1-abc",
+      startedAt: 1000,
+      updatedAt: 1000,
+      syncStatus: "synced" as const
+    };
+
+    await persistence.putSession(record);
+    expect((await persistence.getSession("local-1-abc"))?.updatedAt).toBe(1000);
+
+    await persistence.putSession({ ...record, updatedAt: 2000 });
+    expect((await persistence.getSession("local-1-abc"))?.updatedAt).toBe(2000);
+  });
+
+  it("setSessionSyncStatus updates the status without bumping updatedAt", async () => {
+    const persistence = createInMemoryHistoryPersistence();
+    const store = createHistoryStore(persistence);
+    const session = await store.createLocalSession({ startedAt: 1000 });
+
+    await store.setSessionSyncStatus(session.id, "pending");
+
+    const updated = await store.getSession(session.id);
+    expect(updated?.syncStatus).toBe("pending");
+    expect(updated?.updatedAt).toBe(1000);
   });
 });

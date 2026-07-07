@@ -53,6 +53,9 @@ export function createDexieHistoryPersistence(
     async updateSession(sessionId, changes) {
       await database.sessions.update(sessionId, changes);
     },
+    async putSession(session) {
+      await database.sessions.put(session);
+    },
     async putSegment(segment) {
       await database.segments.put(segment);
     },
