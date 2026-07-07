@@ -20,3 +20,16 @@ const server = createServer(config);
 await server.listen({ port: config.port, host: "127.0.0.1" });
 
 console.log(`EchoFlow backend listening on http://127.0.0.1:${config.port}`);
+
+// Graceful shutdown: server.close() runs the onClose hooks (e.g. the sqlite
+// history repository). process.once so a second signal falls through to
+// Node's default handler and kills a hung shutdown.
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.once(signal, () => {
+    console.log(`Received ${signal}, shutting down...`);
+    void server.close().then(
+      () => process.exit(0),
+      () => process.exit(1),
+    );
+  });
+}

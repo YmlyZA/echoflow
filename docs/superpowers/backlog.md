@@ -21,7 +21,7 @@ Raised the extension to a real-product bar. Each slice = its own spec → plan �
 ## C — Feature expansion
 
 - 🟡 **Speaker separation** — *contract + fake + UI shipped* → `specs/2026-07-01-speaker-labels-design.md`. Optional `speakerId` threads protocol → backend (fake multi-speaker provider + pipeline) → subtitle reducer → overlay chip (color-coded "Speaker N", revealed at ≥2 speakers), persisted in history + text/JSON export + the Options history panel. `assignSpeakerNumbers` (first-seen order) numbers speakers identically across every surface. **Follow-up (deferred):** real Volcengine speaker decode — the AST `TranslateResponse` `spk_chg`/`speaker_id` wire field is not yet confirmed in code; wire it into the interpret/ASR reconcilers once verified with a multi-speaker sample (the contract already carries the optional field).
-- **Usage / billing tracking** — the `UsageResponse(154)` event is currently ignored; record usage for the paid mode.
+- 🟡 **Usage / billing tracking** — `UsageResponse(154)` is now decoded generically and logged (`EchoFlow: volcengine usage` + field dump; `astProtocol.ts` `describeFields`). Structured decode/persistence deferred until real samples confirm the field semantics — the logged lines are those samples.
 - History/export improvements, subtitle styling options, more target languages (graduates automatically as providers expand — see the capabilities design).
 
 ## D — Quality / observability
