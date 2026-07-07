@@ -95,7 +95,7 @@ describe("InterpretReconciler", () => {
   it("ignores usage and source-end without emitting", () => {
     const r = new InterpretReconciler();
     r.reconcile({ kind: "source", text: "hi", final: false, startTime: 0, endTime: 0 });
-    expect(r.reconcile({ kind: "usage" })).toEqual([]);
+    expect(r.reconcile({ kind: "usage", details: "" })).toEqual([]);
     expect(
       r.reconcile({ kind: "source", text: "hi", final: true, startTime: 10, endTime: 50 }),
     ).toEqual([]);

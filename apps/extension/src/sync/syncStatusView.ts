@@ -4,7 +4,12 @@ export interface SyncStatusViewInput {
   /** Capabilities sync.available; null while capabilities are unknown. */
   syncAvailable: boolean | null;
   lastSyncAtMs: number | null;
-  sessions: ReadonlyArray<{ syncStatus: SyncStatus }>;
+  sessions: ReadonlyArray<{ id: string; syncStatus: SyncStatus }>;
+  /**
+   * The currently-capturing session, excluded from waiting/failed counts —
+   * mirrors the engine outbox rule (isSessionActive), which never pushes it.
+   */
+  activeSessionId: string | null;
 }
 
 export interface SyncStatusView {
@@ -32,14 +37,20 @@ export function deriveSyncStatusView(
     };
   }
 
-  const waiting = input.sessions.filter((session) =>
+  const relevant = input.sessions.filter(
+    (session) => session.id !== input.activeSessionId
+  );
+  const waiting = relevant.filter((session) =>
     WAITING_STATUSES.has(session.syncStatus)
   ).length;
+  const failed = relevant.filter(
+    (session) => session.syncStatus === "failed"
+  ).length;
 
-  if (input.sessions.some((session) => session.syncStatus === "failed")) {
+  if (failed > 0) {
     return {
       tone: "failed",
-      label: `Last sync attempt failed · ${waiting} waiting`,
+      label: `${failed} ${failed === 1 ? "session" : "sessions"} could not sync`,
       canSyncNow: true
     };
   }

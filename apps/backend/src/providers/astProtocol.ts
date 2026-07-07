@@ -18,7 +18,7 @@ export type AstStartSessionOptions = {
 export type AstServerEvent =
   | { kind: "source"; text: string; final: boolean; startTime: number; endTime: number }
   | { kind: "translation"; text: string; final: boolean; startTime: number; endTime: number }
-  | { kind: "usage" }
+  | { kind: "usage"; details: string }
   | { kind: "error"; code: number; message: string }
   | { kind: "other" };
 
@@ -210,7 +210,7 @@ export function parseAstMessage(data: Buffer): AstServerEvent {
       return { kind: "translation", final: true, ...parseSubtitle(fields) };
 
     case C.AST_EVENT_USAGE:
-      return { kind: "usage" };
+      return { kind: "usage", details: describeFields(fields) };
 
     default:
       return { kind: "other" };
@@ -226,6 +226,30 @@ function parseSubtitle(
     startTime: getVarintNumber(fields, C.AST_RESP_FIELD_START_TIME),
     endTime: getVarintNumber(fields, C.AST_RESP_FIELD_END_TIME),
   };
+}
+
+/**
+ * Compact, deterministic rendering of a message's top-level fields — varints
+ * as `n=value`, length-delimited as `n=bytes(len)` — ascending field order,
+ * skipping the event field. No semantic interpretation: the usage payload's
+ * field meanings are unverified, and each logged line doubles as a sample for
+ * a future structured decode.
+ */
+function describeFields(fields: Map<number, ProtoField[]>): string {
+  const parts: string[] = [];
+  for (const field of [...fields.keys()].sort((a, b) => a - b)) {
+    if (field === C.AST_RESP_FIELD_EVENT) {
+      continue;
+    }
+    for (const entry of fields.get(field) ?? []) {
+      parts.push(
+        Buffer.isBuffer(entry.value)
+          ? `${field}=bytes(${entry.value.length})`
+          : `${field}=${entry.value}`,
+      );
+    }
+  }
+  return parts.join(" ");
 }
 
 /**

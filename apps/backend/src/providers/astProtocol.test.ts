@@ -188,9 +188,31 @@ describe("astProtocol — decode (bare TranslateResponse protobuf)", () => {
   it("maps UsageResponse(154) to a usage event and unknown events to other", () => {
     expect(parseAstMessage(vField(C.AST_RESP_FIELD_EVENT, C.AST_EVENT_USAGE))).toEqual({
       kind: "usage",
+      details: "",
     });
     expect(
       parseAstMessage(vField(C.AST_RESP_FIELD_EVENT, C.AST_EVENT_SESSION_STARTED)),
     ).toEqual({ kind: "other" });
+  });
+});
+
+describe("parseAstMessage usage events", () => {
+  it("renders the usage payload fields generically, skipping the event field", () => {
+    const message = Buffer.concat([
+      vField(C.AST_RESP_FIELD_EVENT, C.AST_EVENT_USAGE),
+      vField(7, 1234),
+      sField(9, "abc"),
+    ]);
+
+    expect(parseAstMessage(message)).toEqual({
+      kind: "usage",
+      details: "7=1234 9=bytes(3)",
+    });
+  });
+
+  it("renders an empty details string when the usage event carries no extra fields", () => {
+    const message = vField(C.AST_RESP_FIELD_EVENT, C.AST_EVENT_USAGE);
+
+    expect(parseAstMessage(message)).toEqual({ kind: "usage", details: "" });
   });
 });

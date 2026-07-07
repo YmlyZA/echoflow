@@ -66,7 +66,12 @@ export class InterpretationSubtitleSource implements SubtitleSource {
         opts.onError?.(new Error(`AST error ${event.code}: ${event.message}`));
         return;
       }
-      if (event.kind === "other" || event.kind === "usage") return;
+      if (event.kind === "usage") {
+        // Billing-relevant; field semantics unverified — log the generic decode.
+        console.info("EchoFlow: volcengine usage", event.details);
+        return;
+      }
+      if (event.kind === "other") return;
       if (!languageEmitted) {
         languageEmitted = true;
         opts.onEvent({ type: "language", sourceLanguage: sourceAst, targetLanguage });
