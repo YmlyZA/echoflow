@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createConfig } from "./config.js";
 
 const ORIGINAL_ENV = {
@@ -148,6 +148,43 @@ describe("createConfig", () => {
       resourceId: "volc.service_type.10053",
       endpoint: "wss://openspeech.bytedance.com/api/v4/ast/v2/translate",
     });
+  });
+});
+
+describe("historyDbPath", () => {
+  const ENV_KEY = "ECHOFLOW_HISTORY_DB";
+  let saved: string | undefined;
+
+  beforeEach(() => {
+    saved = process.env[ENV_KEY];
+    delete process.env[ENV_KEY];
+  });
+
+  afterEach(() => {
+    if (saved === undefined) {
+      delete process.env[ENV_KEY];
+    } else {
+      process.env[ENV_KEY] = saved;
+    }
+  });
+
+  it("is absent by default (sync off)", () => {
+    expect(createConfig({}).historyDbPath).toBeUndefined();
+  });
+
+  it("reads ECHOFLOW_HISTORY_DB", () => {
+    process.env[ENV_KEY] = "./history.db";
+    expect(createConfig({}).historyDbPath).toBe("./history.db");
+  });
+
+  it("treats a blank env value as unset", () => {
+    process.env[ENV_KEY] = "  ";
+    expect(createConfig({}).historyDbPath).toBeUndefined();
+  });
+
+  it("prefers explicit input over env", () => {
+    process.env[ENV_KEY] = "./env.db";
+    expect(createConfig({ historyDbPath: ":memory:" }).historyDbPath).toBe(":memory:");
   });
 });
 

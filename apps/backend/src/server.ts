@@ -1,6 +1,8 @@
 import websocket from "@fastify/websocket";
 import Fastify, { type FastifyInstance } from "fastify";
 import { createConfig, type BackendConfigInput } from "./config.js";
+import { createSqliteHistoryRepository } from "./history/sqliteHistoryRepository.js";
+import { registerSyncRoutes } from "./history/syncRoutes.js";
 import { buildCapabilities } from "./realtime/capabilities.js";
 import { createSubtitleSourceFactory } from "./realtime/subtitleSourceFactory.js";
 import { RealtimeSession } from "./realtime/session.js";
@@ -9,6 +11,10 @@ import { createApiKeyVerifier, isAllowedOrigin } from "./wsAuth.js";
 export function createServer(input: BackendConfigInput = {}): FastifyInstance {
   const config = createConfig(input);
   const verifyApiKey = createApiKeyVerifier(config.apiKey);
+  const historyRepository =
+    config.historyDbPath !== undefined
+      ? createSqliteHistoryRepository(config.historyDbPath)
+      : undefined;
   const server = Fastify({ logger: false });
 
   void server.register(websocket);
@@ -23,8 +29,18 @@ export function createServer(input: BackendConfigInput = {}): FastifyInstance {
     if (!verifyApiKey(headerKey)) {
       return reply.code(401).send({ error: "Unauthorized" });
     }
-    return buildCapabilities(config.providers, { syncAvailable: false });
+    return buildCapabilities(config.providers, {
+      syncAvailable: historyRepository !== undefined,
+    });
   });
+
+  if (historyRepository !== undefined) {
+    const repository = historyRepository;
+    registerSyncRoutes(server, { repository, verifyApiKey });
+    server.addHook("onClose", async () => {
+      await repository.close();
+    });
+  }
 
   void server.register(async (realtimeServer) => {
     realtimeServer.get(

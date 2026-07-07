@@ -15,6 +15,8 @@ export type BackendConfig = {
   apiKey: string;
   port: number;
   providers: ProviderConfig;
+  /** Path (or ":memory:") for the history sync store; unset → sync disabled. */
+  historyDbPath?: string;
 };
 
 export type BackendConfigInput = Partial<BackendConfig>;
@@ -23,6 +25,8 @@ const DEFAULT_API_KEY = "dev-key";
 const DEFAULT_PORT = 8787;
 
 export function createConfig(input: BackendConfigInput = {}): BackendConfig {
+  const historyDbPath =
+    input.historyDbPath ?? readNonEmpty(process.env.ECHOFLOW_HISTORY_DB);
   return {
     apiKey: input.apiKey ?? process.env.ECHOFLOW_API_KEY ?? DEFAULT_API_KEY,
     port:
@@ -31,7 +35,15 @@ export function createConfig(input: BackendConfigInput = {}): BackendConfig {
       readPort(process.env.PORT, "PORT") ??
       DEFAULT_PORT,
     providers: input.providers ?? readProviderConfig(),
+    ...(historyDbPath !== undefined ? { historyDbPath } : {}),
   };
+}
+
+function readNonEmpty(value: string | undefined): string | undefined {
+  if (value === undefined || value.trim() === "") {
+    return undefined;
+  }
+  return value;
 }
 
 function readPort(value: string | undefined, name: string): number | undefined {
