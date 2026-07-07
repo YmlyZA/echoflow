@@ -13,7 +13,8 @@ export type RuntimeMessage =
   | OffscreenReadyMessage
   | ConnectionStatusMessage
   | VideoTimeSampleMessage
-  | CachedTranscriptMessage;
+  | CachedTranscriptMessage
+  | SyncNowMessage;
 
 export interface StartSessionMessage {
   type: "START_SESSION";
@@ -86,6 +87,10 @@ export interface CachedTranscriptMessage {
   entries: TimelineEntry[];
 }
 
+export interface SyncNowMessage {
+  type: "SYNC_NOW";
+}
+
 export function isRuntimeMessage(message: unknown): message is RuntimeMessage {
   if (!isRecord(message) || typeof message.type !== "string") {
     return false;
@@ -102,7 +107,8 @@ export function isRuntimeMessage(message: unknown): message is RuntimeMessage {
     "OFFSCREEN_READY",
     "CONNECTION_STATUS",
     "VIDEO_TIME_SAMPLE",
-    "CACHED_TRANSCRIPT"
+    "CACHED_TRANSCRIPT",
+    "SYNC_NOW"
   ].includes(message.type);
 }
 
