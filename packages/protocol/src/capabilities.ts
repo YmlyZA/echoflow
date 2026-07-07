@@ -12,8 +12,14 @@ export type ModeCapabilities = {
   defaultPair?: { source: string; target: string };
 };
 
+export type SyncCapability = {
+  available: boolean;
+};
+
 export type CapabilitiesDescriptor = {
   modes: { pipeline: ModeCapabilities; interpret: ModeCapabilities };
+  /** Absent on servers older than SP4a; treat as unavailable. */
+  sync?: SyncCapability;
 };
 
 /** A {source,target} pair is valid iff distinct, target is selectable, and one side is a pivot (zh/en). */
@@ -59,5 +65,10 @@ export function isCapabilitiesDescriptor(value: unknown): value is CapabilitiesD
   const v = value as Record<string, unknown>;
   if (typeof v.modes !== "object" || v.modes === null) return false;
   const modes = v.modes as Record<string, unknown>;
-  return isModeCapabilities(modes.pipeline) && isModeCapabilities(modes.interpret);
+  const syncValid =
+    v.sync === undefined ||
+    (typeof v.sync === "object" &&
+      v.sync !== null &&
+      typeof (v.sync as Record<string, unknown>).available === "boolean");
+  return isModeCapabilities(modes.pipeline) && isModeCapabilities(modes.interpret) && syncValid;
 }

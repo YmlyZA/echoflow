@@ -15,7 +15,10 @@ export const PIPELINE_TARGET_LANGUAGES: LanguageOption[] = [
   { code: "de", label: "Deutsch", pivot: false },
 ];
 
-export function buildCapabilities(config: ProviderConfig): CapabilitiesDescriptor {
+export function buildCapabilities(
+  config: ProviderConfig,
+  options: { syncAvailable: boolean },
+): CapabilitiesDescriptor {
   const interpretAvailable = isInterpretAvailable(config);
   return {
     modes: {
@@ -32,5 +35,6 @@ export function buildCapabilities(config: ProviderConfig): CapabilitiesDescripto
         defaultPair: { source: "en", target: "zh" },
       },
     },
+    sync: { available: options.syncAvailable },
   };
 }

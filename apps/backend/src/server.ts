@@ -22,7 +22,7 @@ export function createServer(input: BackendConfigInput = {}): FastifyInstance {
     if (!timingSafeKeyMatch(headerKey, config.apiKey)) {
       return reply.code(401).send({ error: "Unauthorized" });
     }
-    return buildCapabilities(config.providers);
+    return buildCapabilities(config.providers, { syncAvailable: false });
   });
 
   void server.register(async (realtimeServer) => {

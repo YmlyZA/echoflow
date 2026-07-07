@@ -77,3 +77,27 @@ describe("isCapabilitiesDescriptor", () => {
     expect(isCapabilitiesDescriptor(malformed)).toBe(false);
   });
 });
+
+describe("isCapabilitiesDescriptor sync flag", () => {
+  const mode = {
+    available: true,
+    autoDetect: true,
+    languages: [],
+  };
+  const base = { modes: { pipeline: mode, interpret: mode } };
+
+  it("accepts a descriptor without sync (older servers)", () => {
+    expect(isCapabilitiesDescriptor(base)).toBe(true);
+  });
+
+  it("accepts sync: { available: boolean }", () => {
+    expect(isCapabilitiesDescriptor({ ...base, sync: { available: true } })).toBe(true);
+    expect(isCapabilitiesDescriptor({ ...base, sync: { available: false } })).toBe(true);
+  });
+
+  it("rejects a malformed sync field", () => {
+    expect(isCapabilitiesDescriptor({ ...base, sync: {} })).toBe(false);
+    expect(isCapabilitiesDescriptor({ ...base, sync: { available: "yes" } })).toBe(false);
+    expect(isCapabilitiesDescriptor({ ...base, sync: null })).toBe(false);
+  });
+});
