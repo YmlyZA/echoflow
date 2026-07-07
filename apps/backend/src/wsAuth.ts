@@ -29,3 +29,14 @@ export function timingSafeKeyMatch(
   }
   return timingSafeEqual(a, b);
 }
+
+/**
+ * Auth seam: routes depend on `(provided) => boolean`, not on how keys are
+ * checked. Self-hosted deployments bind one static key (constant-time compare);
+ * a future control plane swaps in a key→tenant lookup without touching routes.
+ */
+export function createApiKeyVerifier(
+  expected: string,
+): (provided: string | undefined) => boolean {
+  return (provided) => timingSafeKeyMatch(provided, expected);
+}

@@ -4,10 +4,11 @@ import { createConfig, type BackendConfigInput } from "./config.js";
 import { buildCapabilities } from "./realtime/capabilities.js";
 import { createSubtitleSourceFactory } from "./realtime/subtitleSourceFactory.js";
 import { RealtimeSession } from "./realtime/session.js";
-import { isAllowedOrigin, timingSafeKeyMatch } from "./wsAuth.js";
+import { createApiKeyVerifier, isAllowedOrigin } from "./wsAuth.js";
 
 export function createServer(input: BackendConfigInput = {}): FastifyInstance {
   const config = createConfig(input);
+  const verifyApiKey = createApiKeyVerifier(config.apiKey);
   const server = Fastify({ logger: false });
 
   void server.register(websocket);
@@ -19,7 +20,7 @@ export function createServer(input: BackendConfigInput = {}): FastifyInstance {
       typeof request.headers["x-api-key"] === "string"
         ? request.headers["x-api-key"]
         : undefined;
-    if (!timingSafeKeyMatch(headerKey, config.apiKey)) {
+    if (!verifyApiKey(headerKey)) {
       return reply.code(401).send({ error: "Unauthorized" });
     }
     return buildCapabilities(config.providers, { syncAvailable: false });
@@ -52,8 +53,8 @@ export function createServer(input: BackendConfigInput = {}): FastifyInstance {
               : undefined;
 
           if (
-            !timingSafeKeyMatch(headerKey, config.apiKey) &&
-            !timingSafeKeyMatch(queryApiKey, config.apiKey)
+            !verifyApiKey(headerKey) &&
+            !verifyApiKey(queryApiKey)
           ) {
             return reply.code(401).send({ error: "Unauthorized" });
           }
