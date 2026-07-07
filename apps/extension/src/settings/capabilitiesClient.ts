@@ -2,28 +2,15 @@ import {
   isCapabilitiesDescriptor,
   type CapabilitiesDescriptor,
 } from "@echoflow/protocol";
+import { buildServerHttpUrl } from "./serverHttpUrl";
 
 export async function fetchCapabilities(
   serverUrl: string,
   apiKey: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<CapabilitiesDescriptor | null> {
-  let url: string;
-  try {
-    const parsed = new URL(serverUrl.trim());
-    if (parsed.protocol === "wss:") {
-      parsed.protocol = "https:";
-    } else if (parsed.protocol === "ws:") {
-      parsed.protocol = "http:";
-    }
-    const normalizedBase = parsed.pathname.endsWith("/")
-      ? parsed.pathname.slice(0, -1)
-      : parsed.pathname;
-    parsed.pathname = `${normalizedBase}/v1/capabilities`;
-    parsed.search = "";
-    parsed.hash = "";
-    url = parsed.toString();
-  } catch {
+  const url = buildServerHttpUrl(serverUrl, "/v1/capabilities");
+  if (url === null) {
     return null;
   }
 
