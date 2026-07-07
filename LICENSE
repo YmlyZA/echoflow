@@ -1,0 +1,32 @@
+EchoFlow — licensing overview
+=============================
+
+EchoFlow is free and open source, permanently. Different parts of this
+monorepo carry different licenses, chosen so that the client/protocol
+surface is maximally reusable while the server cannot be re-hosted as a
+closed commercial service by third parties:
+
+  packages/protocol   MIT                 see packages/protocol/LICENSE
+  apps/extension      MIT                 see apps/extension/LICENSE
+  apps/backend        AGPL-3.0-only       see apps/backend/LICENSE
+
+What this means in practice:
+
+- Self-hosting is unrestricted. Run the backend on your own machine or
+  server, for yourself, forever, at no cost. The AGPL places no
+  obligations on private use.
+- The wire protocol and the browser extension are MIT: build compatible
+  clients or alternative backends freely.
+- If you offer a modified backend to others over a network (e.g. as a
+  hosted service), the AGPL requires you to publish your modifications
+  under the same license.
+
+Scripts, documentation, and other files not under the three package
+directories above are MIT unless a file states otherwise.
+
+Trademark: "EchoFlow" and any associated logos are not covered by the
+licenses above. You may not use the name in a way that suggests your
+distribution or service is official.
+
+Contributions are accepted under the Developer Certificate of Origin —
+see CONTRIBUTING.md.

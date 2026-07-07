@@ -1,6 +1,7 @@
 {
   "name": "echoflow",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE",
   "type": "module",
   "packageManager": "pnpm@10.0.0",
   "scripts": {

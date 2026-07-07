@@ -188,3 +188,16 @@ bash scripts/dev-smoke.sh
 ```
 
 The smoke script starts a local backend, builds/loads the extension in headless Chromium, seeds extension settings, verifies the backend health check, and exercises the extension startup path. Headless automation cannot fully reproduce a real toolbar click that grants Chrome's `activeTab` and `tabCapture` privileges, so the smoke test records that synthetic extension-action limitation while still validating the deterministic parts of the flow.
+
+## License
+
+EchoFlow is free and open source, permanently. The monorepo is licensed
+per package: `packages/protocol` and `apps/extension` are **MIT** (build
+compatible clients or backends freely); `apps/backend` is **AGPL-3.0-only**
+(self-hosting is unrestricted; offering a modified backend as a network
+service requires publishing your modifications). See the root
+[`LICENSE`](LICENSE) for the full overview, and [`CONTRIBUTING.md`](CONTRIBUTING.md)
+for the DCO sign-off required on contributions.
+
+"EchoFlow" and any associated logos are not covered by the code licenses;
+do not use the name to suggest an official distribution or service.
