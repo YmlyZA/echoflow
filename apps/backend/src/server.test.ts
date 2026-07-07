@@ -264,6 +264,82 @@ describe("backend realtime websocket", () => {
   });
 });
 
+describe("history sync wiring", () => {
+  const pushBody = {
+    sessions: [{ id: "s1", updatedAtMs: 100, payload: { videoKey: "youtube:x" } }],
+    segments: [
+      { sessionId: "s1", segmentId: "e0:seg-1", payload: { sourceText: "hi" } },
+    ],
+  };
+
+  it("does not register sync routes by default and reports sync unavailable", async () => {
+    const server = createServer();
+    await server.ready();
+
+    const push = await server.inject({
+      method: "POST",
+      url: "/v1/sync/push",
+      headers: { "x-api-key": "dev-key" },
+      payload: pushBody,
+    });
+    expect(push.statusCode).toBe(404);
+
+    const caps = await server.inject({
+      method: "GET",
+      url: "/v1/capabilities",
+      headers: { "x-api-key": "dev-key" },
+    });
+    expect(caps.json().sync).toEqual({ available: false });
+
+    await server.close();
+  });
+
+  it("registers sync routes when historyDbPath is set and round-trips a push", async () => {
+    const server = createServer({ historyDbPath: ":memory:" });
+    await server.ready();
+
+    const caps = await server.inject({
+      method: "GET",
+      url: "/v1/capabilities",
+      headers: { "x-api-key": "dev-key" },
+    });
+    expect(caps.json().sync).toEqual({ available: true });
+
+    const push = await server.inject({
+      method: "POST",
+      url: "/v1/sync/push",
+      headers: { "x-api-key": "dev-key" },
+      payload: pushBody,
+    });
+    expect(push.statusCode).toBe(200);
+    expect(push.json()).toEqual({ accepted: { sessions: 1, segments: 1 } });
+
+    const pull = await server.inject({
+      method: "GET",
+      url: "/v1/sync/pull?since=0",
+      headers: { "x-api-key": "dev-key" },
+    });
+    expect(pull.statusCode).toBe(200);
+    expect(pull.json().sessions).toEqual(pushBody.sessions);
+    expect(pull.json().segments).toEqual(pushBody.segments);
+
+    await server.close();
+  });
+
+  it("rejects sync requests without the api key", async () => {
+    const server = createServer({ historyDbPath: ":memory:" });
+    await server.ready();
+
+    const res = await server.inject({
+      method: "GET",
+      url: "/v1/sync/pull",
+    });
+    expect(res.statusCode).toBe(401);
+
+    await server.close();
+  });
+});
+
 function collectServerEvents(
   socket: WebSocket,
   expectedCount: number,
