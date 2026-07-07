@@ -29,6 +29,11 @@ import { SegmentedControl } from "../../src/ui/SegmentedControl";
 import { assignSpeakerNumbers } from "../../src/subtitles/speakerDisplay";
 import { LanguagePicker } from "../../src/ui/LanguagePicker";
 import { CONTROL_STYLES } from "../../src/ui/controlStyles";
+import type { SyncNowMessage } from "../../src/messaging/messages";
+import { deriveSyncStatusView } from "../../src/sync/syncStatusView";
+import { SyncSection } from "../../src/sync/SyncSection";
+import { SyncStatusBadge } from "../../src/sync/SyncStatusBadge";
+import { LAST_SYNC_STORAGE_KEY } from "../../src/sync/syncStorageKeys";
 
 const historyStore = createHistoryStore();
 
@@ -261,7 +266,7 @@ function OptionsApp() {
         </div>
       </form>
 
-      <HistoryPanel />
+      <HistoryPanel syncAvailable={capabilities?.sync?.available ?? null} />
     </main>
   );
 }
@@ -356,7 +361,7 @@ function LanguagesField({
   );
 }
 
-function HistoryPanel() {
+function HistoryPanel({ syncAvailable }: { syncAvailable: boolean | null }) {
   const [sessions, setSessions] = useState<HistorySessionRecord[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState("");
   const [segments, setSegments] = useState<HistorySegmentRecord[]>([]);
@@ -373,6 +378,8 @@ function HistoryPanel() {
   const [exportContent, setExportContent] = useState("");
   const [exportFormat, setExportFormat] = useState<"text" | "json" | "">("");
   const [historyError, setHistoryError] = useState("");
+  const [lastSyncAtMs, setLastSyncAtMs] = useState<number | null>(null);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -388,6 +395,38 @@ function HistoryPanel() {
     return () => {
       mounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    void chrome.storage.local.get(LAST_SYNC_STORAGE_KEY).then((stored) => {
+      const value: unknown = stored[LAST_SYNC_STORAGE_KEY];
+      if (mounted && typeof value === "number") {
+        setLastSyncAtMs(value);
+      }
+    });
+
+    const onChanged = (
+      changes: Record<string, chrome.storage.StorageChange>,
+      area: string
+    ) => {
+      if (area !== "local" || !(LAST_SYNC_STORAGE_KEY in changes)) {
+        return;
+      }
+      const value: unknown = changes[LAST_SYNC_STORAGE_KEY]?.newValue;
+      if (typeof value === "number") {
+        setLastSyncAtMs(value);
+      }
+      setSyncing(false);
+      void refreshSessions();
+    };
+    chrome.storage.onChanged.addListener(onChanged);
+    return () => {
+      mounted = false;
+      chrome.storage.onChanged.removeListener(onChanged);
+    };
+    // refreshSessions only touches state setters; the first instance is fine.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -427,6 +466,17 @@ function HistoryPanel() {
     }
   }
 
+  function syncNow() {
+    setSyncing(true);
+    void Promise.resolve(
+      chrome.runtime.sendMessage({ type: "SYNC_NOW" } satisfies SyncNowMessage)
+    ).catch(() => {});
+    window.setTimeout(() => {
+      setSyncing(false);
+      void refreshSessions();
+    }, 10_000);
+  }
+
   async function exportSelectedSession(format: "text" | "json") {
     if (!selectedSessionId) return;
     try {
@@ -460,6 +510,12 @@ function HistoryPanel() {
         </button>
       </div>
 
+      <SyncSection
+        view={deriveSyncStatusView({ syncAvailable, lastSyncAtMs, sessions })}
+        syncing={syncing}
+        onSyncNow={syncNow}
+      />
+
       {historyError ? (
         <p role="alert" className="ef-banner ef-banner-error">
           {historyError}
@@ -482,7 +538,7 @@ function HistoryPanel() {
                 >
                   <span className="ef-session-date">{formatDateTime(session.startedAt)}</span>
                   <span className="ef-session-meta">
-                    {formatLanguages(session)} · {session.syncStatus}
+                    {formatLanguages(session)} <SyncStatusBadge status={session.syncStatus} />
                   </span>
                 </button>
               </li>
@@ -670,6 +726,15 @@ ${CONTROL_STYLES}
 .ef-segment-translation { margin: 0; font-size: 14px; color: var(--ef-text-muted); overflow-wrap: anywhere; }
 .ef-export-label { display: grid; gap: 6px; font-size: 12.5px; font-weight: 700; }
 .ef-export { width: 100%; border: 1px solid var(--ef-border); border-radius: 9px; padding: 10px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ef-text); resize: vertical; }
+
+.ef-sync-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.ef-sync-status { font-size: 13px; color: var(--ef-text-muted); }
+.ef-sync-failed { color: #b3261e; }
+.ef-badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; line-height: 16px; }
+.ef-badge-neutral { background: #eef0f2; color: var(--ef-text-muted); }
+.ef-badge-waiting { background: #fdf3e2; color: #8a5a00; }
+.ef-badge-ok { background: var(--ef-accent-weak); color: var(--ef-accent); }
+.ef-badge-failed { background: #fdeceb; color: #b3261e; }
 `;
 
 const root = document.getElementById("root");

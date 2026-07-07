@@ -32,6 +32,10 @@ import { createSerialQueue } from "../src/messaging/serialQueue";
 import { isMessageForActiveSession } from "../src/session/activeSession";
 import { createVideoTimeIndex } from "../src/subtitles/videoTimeIndex";
 import { videoIdentity } from "../src/subtitles/videoIdentity";
+import {
+  LAST_SYNC_STORAGE_KEY,
+  SYNC_CURSOR_STORAGE_KEY
+} from "../src/sync/syncStorageKeys";
 
 const OFFSCREEN_DOCUMENT_PATH = "offscreen.html";
 const CONTENT_SCRIPT_PATH = "content-scripts/content.js";
@@ -46,8 +50,6 @@ let captureStartedAtMs: number | undefined;
 
 const SYNC_ALARM_NAME = "echoflow-sync";
 const SYNC_ALARM_PERIOD_MINUTES = 15;
-const SYNC_CURSOR_STORAGE_KEY = "echoflow.syncCursor";
-const LAST_SYNC_STORAGE_KEY = "echoflow.lastSyncAtMs";
 
 const syncCursorStore: SyncCursorStore = {
   async get() {
