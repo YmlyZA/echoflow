@@ -65,6 +65,10 @@ describe("isRuntimeMessage", () => {
     ).toBe(true);
   });
 
+  it("accepts SYNC_NOW", () => {
+    expect(isRuntimeMessage({ type: "SYNC_NOW" })).toBe(true);
+  });
+
   it("rejects unknown message types", () => {
     expect(isRuntimeMessage({ type: "NOPE" })).toBe(false);
   });

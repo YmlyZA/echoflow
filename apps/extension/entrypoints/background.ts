@@ -16,8 +16,12 @@ import {
   createHistoryStore,
   type HistorySegmentRecord
 } from "../src/history/historyStore";
+import { createDexieHistoryPersistence } from "../src/history/db";
 import { finalEventToSegment } from "../src/history/segmentMapping";
-import { validateSettings } from "../src/settings/settings";
+import { createSyncEngine, type SyncCursorStore } from "../src/sync/syncEngine";
+import { createFetchSyncTransport } from "../src/sync/syncTransport";
+import { fetchCapabilities } from "../src/settings/capabilitiesClient";
+import { loadSettings, validateSettings } from "../src/settings/settings";
 import {
   createInitialSessionState,
   reduceSessionState,
@@ -32,12 +36,66 @@ import { videoIdentity } from "../src/subtitles/videoIdentity";
 const OFFSCREEN_DOCUMENT_PATH = "offscreen.html";
 const CONTENT_SCRIPT_PATH = "content-scripts/content.js";
 
-const historyStore = createHistoryStore();
+const historyPersistence = createDexieHistoryPersistence();
+const historyStore = createHistoryStore(historyPersistence);
 let sessionState: SessionState = createInitialSessionState();
 let detectedSourceLanguage = "unknown";
 let stateLoaded: Promise<void> | undefined;
 const videoTimeIndex = createVideoTimeIndex();
 let captureStartedAtMs: number | undefined;
+
+const SYNC_ALARM_NAME = "echoflow-sync";
+const SYNC_ALARM_PERIOD_MINUTES = 15;
+const SYNC_CURSOR_STORAGE_KEY = "echoflow.syncCursor";
+const LAST_SYNC_STORAGE_KEY = "echoflow.lastSyncAtMs";
+
+const syncCursorStore: SyncCursorStore = {
+  async get() {
+    const stored = await chrome.storage.local.get(SYNC_CURSOR_STORAGE_KEY);
+    const value: unknown = stored[SYNC_CURSOR_STORAGE_KEY];
+    return typeof value === "number" && Number.isFinite(value) ? value : 0;
+  },
+  async set(cursor) {
+    await chrome.storage.local.set({ [SYNC_CURSOR_STORAGE_KEY]: cursor });
+  }
+};
+
+const syncEngine = createSyncEngine({
+  persistence: historyPersistence,
+  cursorStore: syncCursorStore,
+  getTransport: async () => {
+    const settings = await loadSettings();
+    if (!settings.serverUrl.trim() || !settings.apiKey.trim()) {
+      return null;
+    }
+    const capabilities = await fetchCapabilities(settings.serverUrl, settings.apiKey);
+    if (capabilities?.sync?.available !== true) {
+      return null;
+    }
+    return createFetchSyncTransport({
+      serverUrl: settings.serverUrl,
+      apiKey: settings.apiKey
+    });
+  },
+  isSessionActive: (sessionId) =>
+    sessionState.status !== "idle" && sessionState.localSessionId === sessionId
+});
+
+/** Fire-and-forget: sync must never block or fail the capture path. */
+function triggerSync(reason: string): void {
+  syncEngine
+    .syncNow()
+    .then(async (result) => {
+      if (result.status === "ok") {
+        await chrome.storage.local.set({ [LAST_SYNC_STORAGE_KEY]: Date.now() });
+      } else if (result.status === "failed") {
+        console.warn(`EchoFlow sync failed (${reason}):`, result.error);
+      }
+    })
+    .catch((error) => {
+      console.warn(`EchoFlow sync error (${reason}):`, error);
+    });
+}
 
 function ensureStateLoaded(): Promise<void> {
   stateLoaded ??= loadPersistedState().then((persisted) => {
@@ -69,6 +127,24 @@ export default defineBackground(() => {
     if (details.reason === "install") {
       void chrome.tabs.create({ url: chrome.runtime.getURL("onboarding.html") });
     }
+  });
+
+  void chrome.alarms.get(SYNC_ALARM_NAME).then((existing) => {
+    if (existing === undefined) {
+      void chrome.alarms.create(SYNC_ALARM_NAME, {
+        periodInMinutes: SYNC_ALARM_PERIOD_MINUTES
+      });
+    }
+  });
+
+  chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name !== SYNC_ALARM_NAME) {
+      return;
+    }
+    enqueueMessage(async () => {
+      await ensureStateLoaded();
+      triggerSync("alarm");
+    });
   });
 
   const enqueueMessage = createSerialQueue((error) => {
@@ -240,6 +316,14 @@ async function stopSession(reason: string): Promise<void> {
   );
 
   await notifyTabSessionStopped(tabId, localSessionId);
+
+  try {
+    await historyStore.setSessionSyncStatus(localSessionId, "pending");
+  } catch (error) {
+    // Marking is best-effort; the local-only sweep catches missed sessions.
+    console.warn("EchoFlow: failed to mark session for sync", error);
+  }
+  triggerSync("session_end");
 }
 
 async function notifyTabSessionStopped(
@@ -277,6 +361,9 @@ async function handleRuntimeMessage(message: RuntimeMessage): Promise<void> {
       return;
     case "CONNECTION_STATUS":
       await forwardConnectionStatus(message);
+      return;
+    case "SYNC_NOW":
+      triggerSync("manual");
       return;
     case "OFFSCREEN_READY":
     case "START_SESSION":
