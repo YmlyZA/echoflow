@@ -1,3 +1,4 @@
+import { defaultClientConditions } from "vite";
 import { defineConfig } from "wxt";
 
 // Release builds inject the full version (including any prerelease suffix) via
@@ -10,7 +11,13 @@ const versionName = process.env.EF_VERSION_NAME;
 export default defineConfig({
   manifestVersion: 3,
   vite: () => ({
-    resolve: { conditions: ["echoflow-source"] },
+    // Spread Vite's defaults rather than listing "echoflow-source" alone: since
+    // Vite 6, a user-set `resolve.conditions` REPLACES `defaultClientConditions`
+    // (module/browser/development|production) instead of extending it. Listing
+    // only the custom condition drops `browser`, so the first dependency that
+    // ships a real `browser` entry would be bundled as its Node build — into a
+    // browser extension, with no error anywhere.
+    resolve: { conditions: [...defaultClientConditions, "echoflow-source"] },
   }),
   modules: ["@wxt-dev/module-react"],
   zip: {
