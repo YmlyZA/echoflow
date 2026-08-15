@@ -15,7 +15,22 @@ RUN pnpm install --frozen-lockfile --filter @echoflow/backend...
 COPY packages/protocol packages/protocol
 COPY apps/backend apps/backend
 RUN pnpm --filter @echoflow/protocol build \
- && pnpm --filter @echoflow/backend build
+ && pnpm --filter @echoflow/backend build \
+ && CI=true pnpm prune --prod \
+ && CI=true pnpm install --frozen-lockfile --prod --filter @echoflow/backend... --offline
+# `CI=true` forces pnpm past an interactive "reinstall from scratch?" prompt
+# that a non-TTY `docker build` cannot answer (it otherwise silently no-ops,
+# leaving devDependencies in place). Verified: on its own, `pnpm prune --prod`
+# shrinks the shared .pnpm store correctly but also wipes EVERY local symlink
+# under apps/backend/node_modules — including production deps (fastify, ws,
+# the @echoflow/protocol workspace link) — a pnpm 10.0.0 bug with this
+# filtered-install layout, not specific to this fallback; a bare `pnpm prune
+# --prod` here crashes the server with ERR_MODULE_NOT_FOUND for
+# @fastify/websocket. The follow-up `pnpm install --prod --offline` relinks
+# from the now-pruned store: it recreates exactly the production symlinks
+# (protocol included) and none of the devDependency ones, without touching
+# the network (--offline fails loudly instead of silently refetching if
+# anything is inconsistent).
 
 FROM node:22-alpine AS runtime
 WORKDIR /app
