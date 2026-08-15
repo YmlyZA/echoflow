@@ -45,3 +45,26 @@ jobs:
           echo "backend did not become healthy"
           kill $SERVER_PID || true
           exit 1
+
+      # `pnpm dev` must work on a clean checkout, i.e. with no packages/protocol/dist.
+      # tsx only resolves @echoflow/protocol to TypeScript source when it is passed
+      # --conditions=echoflow-source; without that flag it takes the package's
+      # `default` export condition and dies with ERR_MODULE_NOT_FOUND. Deleting dist/
+      # is why this runs last.
+      - name: Smoke the dev server with no built protocol
+        run: |
+          rm -rf packages/protocol/dist
+          setsid pnpm --filter @echoflow/backend dev &
+          SERVER_PID=$!
+          # pnpm run spawns tsx as a child, so kill the whole process group.
+          stop() { kill -- "-${SERVER_PID}" 2>/dev/null || kill "${SERVER_PID}" 2>/dev/null || true; }
+          for _ in $(seq 1 40); do
+            if curl -sf http://127.0.0.1:8787/healthz; then
+              stop
+              exit 0
+            fi
+            sleep 0.5
+          done
+          echo "dev server did not become healthy without packages/protocol/dist"
+          stop
+          exit 1

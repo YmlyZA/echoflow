@@ -128,8 +128,17 @@ type.
 
 The root cause of the non-runnable artifact. `packages/protocol/package.json` currently points
 `main`/`types`/`exports` at `src/index.ts`, which CLAUDE.md documents as deliberate: consumers see
-protocol changes without a rebuild. That holds for `tsx` and for bundlers, and breaks only under
-plain Node.
+protocol changes without a rebuild. That holds for bundlers and breaks under plain Node.
+
+Correction (found in review after implementation): it does **not** hold for `tsx` for free. `tsx`
+is a Node loader, not a bundler — it sets no extra export conditions, so once `exports` gains a
+`default` that points at `dist/`, a plain `tsx src/dev.ts` resolves the compiled output exactly
+like `node` does. Every `tsx` entry point that imports workspace source therefore has to pass
+`--conditions=echoflow-source` explicitly (`apps/backend`'s `dev` script, and the two opt-in
+`scripts/volcengine-*-smoke.ts` invocations). Without it `pnpm dev` dies with
+`ERR_MODULE_NOT_FOUND` on a clean checkout, and with a stale `dist/` present it silently runs
+against compiled guards that `tsc` — which does see the condition, via `customConditions` — no
+longer agrees with.
 
 Constraint that shapes the fix: there are **no vitest config files in the repo** (tests run on
 default resolution), and `ci.yml` ordering is `typecheck → test → build` — test runs *before*
@@ -207,6 +216,14 @@ Boot fail-fast is covered in the existing `createConfig` / `createServer` test s
 built-artifact smoke lives in CI as a real process start, not in vitest — an in-process test cannot
 catch a module-resolution failure that only manifests under plain Node, which is precisely the
 class of bug this slice exists to close.
+
+Two process-start questions belong in CI for the same reason, and neither is expressible as a unit
+test:
+
+- Does `node apps/backend/dist/main.js` serve `/healthz`? (the built artifact)
+- **Does `pnpm dev` still work with `packages/protocol/dist` deleted?** (the clean-checkout
+  developer path — the case the `echoflow-source` condition exists to preserve, and the one that
+  regressed silently because a stale `dist/` masks it locally)
 
 ## Out of scope
 

@@ -2,7 +2,12 @@
 //
 // Usage (from repo root):
 //   VOLCENGINE_ASR_APP_KEY=... VOLCENGINE_ASR_ACCESS_KEY=... \
-//   pnpm --filter @echoflow/backend exec tsx ../../scripts/volcengine-asr-smoke.ts path/to/audio.pcm
+//   pnpm --filter @echoflow/backend exec tsx --conditions=echoflow-source \
+//     ../../scripts/volcengine-asr-smoke.ts path/to/audio.pcm
+//
+// `--conditions=echoflow-source` makes @echoflow/protocol resolve to its
+// TypeScript source; without it tsx takes the package's `default` export
+// condition and needs `pnpm --filter @echoflow/protocol build` to have run.
 //
 // The audio file must be raw 16 kHz / 16-bit / mono little-endian PCM (or a WAV
 // with that format — its 44-byte header is skipped). Prints partial/final
