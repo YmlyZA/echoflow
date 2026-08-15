@@ -154,13 +154,33 @@ function ConnectStep({ view, handlers }: { view: OnboardingView; handlers: Onboa
       {view.connectState === "ok" && view.connectSummary ? (
         <div className="ef-test ef-test-ok" role="status">
           <span className="ef-test-ic">✓</span>
-          <div><b>Connected.</b> {view.connectSummary.detail}</div>
+          <div>
+            <b>Connected.</b> {view.connectSummary.detail}
+            {view.connectSummary.demo ? (
+              <p
+                className="ef-onboarding-demo-badge"
+                style={{ margin: "6px 0 0", fontSize: "12px", fontWeight: 600, color: "#0a6e60" }}
+              >
+                Demo mode — the backend is serving deterministic sample subtitles.
+              </p>
+            ) : null}
+            {view.connectSummary.blockers.length > 0 ? (
+              <ul
+                className="ef-onboarding-blockers"
+                style={{ margin: "6px 0 0", paddingLeft: "16px", display: "grid", gap: "3px", fontSize: "12px", color: "var(--ef-text-muted)" }}
+              >
+                {view.connectSummary.blockers.map((hint) => (
+                  <li key={hint}>{hint}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         </div>
       ) : view.connectState === "error" ? (
         <div className="ef-test ef-test-err" role="status">
           <span className="ef-test-ic">!</span>
           <div>
-            <b>Can't reach the backend.</b> Is it running? Start it with <code>pnpm --filter @echoflow/backend dev</code>, then retry.{" "}
+            <b>Can not reach the backend.</b> Is it running? Start it with <code>docker run --rm -p 127.0.0.1:8787:8787 --env-file .env ghcr.io/ymlyza/echoflow-backend</code>, then retry.{" "}
             <button className="ef-link" type="button" onClick={handlers.onOpenSetupGuide}>Setup guide →</button>
           </div>
         </div>
