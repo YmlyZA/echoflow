@@ -4,6 +4,7 @@ import { createConfig } from "./config.js";
 const ORIGINAL_ENV = {
   ECHOFLOW_API_KEY: process.env.ECHOFLOW_API_KEY,
   ECHOFLOW_ASR_PROVIDER: process.env.ECHOFLOW_ASR_PROVIDER,
+  ECHOFLOW_HOST: process.env.ECHOFLOW_HOST,
   ECHOFLOW_PORT: process.env.ECHOFLOW_PORT,
   ECHOFLOW_TRANSLATION_PROVIDER: process.env.ECHOFLOW_TRANSLATION_PROVIDER,
   PORT: process.env.PORT,
@@ -223,6 +224,7 @@ function restoreEnv(name: string, value: string | undefined): void {
 
 afterEach(() => {
   restoreEnv("ECHOFLOW_ASR_PROVIDER", ORIGINAL_ENV.ECHOFLOW_ASR_PROVIDER);
+  restoreEnv("ECHOFLOW_HOST", ORIGINAL_ENV.ECHOFLOW_HOST);
   restoreEnv(
     "ECHOFLOW_TRANSLATION_PROVIDER",
     ORIGINAL_ENV.ECHOFLOW_TRANSLATION_PROVIDER,
