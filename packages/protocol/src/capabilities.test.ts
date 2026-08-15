@@ -12,6 +12,18 @@ const ja: LanguageOption = { code: "ja", label: "日本語", pivot: false };
 const ko: LanguageOption = { code: "ko", label: "한국어", pivot: false };
 const yue: LanguageOption = { code: "yue", label: "粤语", pivot: false, sourceOnly: true };
 
+const valid: CapabilitiesDescriptor = {
+  modes: {
+    pipeline: { available: true, autoDetect: true, languages: [en] },
+    interpret: {
+      available: true,
+      autoDetect: false,
+      languages: [zh, en, ja],
+      defaultPair: { source: "en", target: "zh" },
+    },
+  },
+};
+
 describe("validTarget", () => {
   it("allows a foreign source only against a pivot target", () => {
     expect(validTarget(ja, zh)).toBe(true);
@@ -29,17 +41,6 @@ describe("validTarget", () => {
 });
 
 describe("isCapabilitiesDescriptor", () => {
-  const valid: CapabilitiesDescriptor = {
-    modes: {
-      pipeline: { available: true, autoDetect: true, languages: [en] },
-      interpret: {
-        available: true,
-        autoDetect: false,
-        languages: [zh, en, ja],
-        defaultPair: { source: "en", target: "zh" },
-      },
-    },
-  };
   it("accepts a well-formed descriptor", () => {
     expect(isCapabilitiesDescriptor(valid)).toBe(true);
   });
@@ -99,5 +100,41 @@ describe("isCapabilitiesDescriptor sync flag", () => {
     expect(isCapabilitiesDescriptor({ ...base, sync: {} })).toBe(false);
     expect(isCapabilitiesDescriptor({ ...base, sync: { available: "yes" } })).toBe(false);
     expect(isCapabilitiesDescriptor({ ...base, sync: null })).toBe(false);
+  });
+});
+
+describe("isCapabilitiesDescriptor demo and blockers", () => {
+  const withPipeline = (extra: Record<string, unknown>) => ({
+    ...valid,
+    modes: { ...valid.modes, pipeline: { ...valid.modes.pipeline, ...extra } },
+  });
+
+  it("accepts a descriptor without the new fields", () => {
+    expect(isCapabilitiesDescriptor(valid)).toBe(true);
+  });
+
+  it("accepts a boolean demo flag", () => {
+    expect(isCapabilitiesDescriptor(withPipeline({ demo: true }))).toBe(true);
+  });
+
+  it("rejects a non-boolean demo flag", () => {
+    expect(isCapabilitiesDescriptor(withPipeline({ demo: "yes" }))).toBe(false);
+  });
+
+  it("accepts known blocker codes", () => {
+    expect(
+      isCapabilitiesDescriptor(withPipeline({ blockers: ["asr_credentials_missing"] })),
+    ).toBe(true);
+  });
+
+  it("accepts an unknown blocker code from a newer backend", () => {
+    expect(isCapabilitiesDescriptor(withPipeline({ blockers: ["quantum_flux"] }))).toBe(
+      true,
+    );
+  });
+
+  it("rejects blockers that are not an array of strings", () => {
+    expect(isCapabilitiesDescriptor(withPipeline({ blockers: "nope" }))).toBe(false);
+    expect(isCapabilitiesDescriptor(withPipeline({ blockers: [1] }))).toBe(false);
   });
 });
