@@ -9,6 +9,9 @@ const versionName = process.env.EF_VERSION_NAME;
 
 export default defineConfig({
   manifestVersion: 3,
+  vite: () => ({
+    resolve: { conditions: ["echoflow-source"] },
+  }),
   modules: ["@wxt-dev/module-react"],
   zip: {
     // Deterministic artifact name regardless of the scoped package name:
