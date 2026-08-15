@@ -13,4 +13,9 @@ if (existsSync(repoRootEnv)) {
   console.log(`Loaded environment from ${repoRootEnv}`);
 }
 
-await startServer();
+// Same as main.ts: report the cause on one line instead of an unhandled-rejection
+// stack trace stapled to the configuration report.
+await startServer().catch((error: unknown) => {
+  console.error(error instanceof Error ? error.message : error);
+  process.exit(1);
+});
