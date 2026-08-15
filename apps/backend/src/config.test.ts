@@ -34,6 +34,7 @@ describe("createConfig", () => {
     expect(createConfig()).toEqual({
       apiKey: "custom-key",
       port: 9999,
+      host: "127.0.0.1",
       providers: {
         asr: { provider: "fake" },
         translation: { provider: "fake" },
@@ -71,6 +72,7 @@ describe("createConfig", () => {
     ).toEqual({
       apiKey: "input-key",
       port: 8888,
+      host: "127.0.0.1",
       providers: {
         asr: { provider: "tencent" },
         translation: {
@@ -185,6 +187,28 @@ describe("historyDbPath", () => {
   it("prefers explicit input over env", () => {
     process.env[ENV_KEY] = "./env.db";
     expect(createConfig({ historyDbPath: ":memory:" }).historyDbPath).toBe(":memory:");
+  });
+});
+
+describe("host", () => {
+  it("defaults to loopback", () => {
+    delete process.env.ECHOFLOW_HOST;
+    expect(createConfig().host).toBe("127.0.0.1");
+  });
+
+  it("reads ECHOFLOW_HOST", () => {
+    process.env.ECHOFLOW_HOST = "0.0.0.0";
+    expect(createConfig().host).toBe("0.0.0.0");
+  });
+
+  it("ignores a blank ECHOFLOW_HOST", () => {
+    process.env.ECHOFLOW_HOST = "   ";
+    expect(createConfig().host).toBe("127.0.0.1");
+  });
+
+  it("prefers an explicit input over the environment", () => {
+    process.env.ECHOFLOW_HOST = "0.0.0.0";
+    expect(createConfig({ host: "127.0.0.1" }).host).toBe("127.0.0.1");
   });
 });
 
