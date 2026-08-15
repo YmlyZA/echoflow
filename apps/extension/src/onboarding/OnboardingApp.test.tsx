@@ -49,7 +49,7 @@ describe("OnboardingApp", () => {
       step: "connect",
       connectState: "ok",
       canContinue: true,
-      connectSummary: { tone: "full", detail: "Free + Interpret available · 20 languages", languageCount: 20 }
+      connectSummary: { tone: "full", detail: "Free + Interpret available · 20 languages", languageCount: 20, demo: false, blockers: [] }
     });
     expect(html).toContain("Connected");
     expect(html).toContain("Interpret available");
