@@ -32,6 +32,16 @@ const volcAsrWithCreds = () =>
     },
   });
 
+const asrUnimplemented = () =>
+  createConfig({
+    providers: { asr: { provider: "aliyun" }, translation: { provider: "fake" } },
+  });
+
+const translationUnimplemented = () =>
+  createConfig({
+    providers: { asr: { provider: "fake" }, translation: { provider: "tencent" } },
+  });
+
 describe("describeConfigHealth", () => {
   it("marks fake providers ready and demo", () => {
     const asr = describeConfigHealth(fakeConfig()).find((c) => c.name === "asr");
@@ -60,6 +70,30 @@ describe("describeConfigHealth", () => {
     expect(interpret?.ready).toBe(false);
     expect(interpret?.missing).toEqual(["VOLCENGINE_AST_API_KEY"]);
   });
+
+  it("marks an unimplemented asr provider not ready, not demo, and unimplemented", () => {
+    const asr = describeConfigHealth(asrUnimplemented()).find((c) => c.name === "asr");
+    expect(asr).toMatchObject({
+      provider: "aliyun",
+      ready: false,
+      demo: false,
+      unimplemented: true,
+      missing: [],
+    });
+  });
+
+  it("marks an unimplemented translation provider not ready, not demo, and unimplemented", () => {
+    const translation = describeConfigHealth(translationUnimplemented()).find(
+      (c) => c.name === "translation",
+    );
+    expect(translation).toMatchObject({
+      provider: "tencent",
+      ready: false,
+      demo: false,
+      unimplemented: true,
+      missing: [],
+    });
+  });
 });
 
 describe("assertConfigUsable", () => {
@@ -78,10 +112,29 @@ describe("assertConfigUsable", () => {
       /VOLCENGINE_ASR_APP_KEY/,
     );
   });
+
+  it("throws naming the provider for an unimplemented asr provider, not a blank message", () => {
+    expect(() =>
+      assertConfigUsable(describeConfigHealth(asrUnimplemented())),
+    ).toThrow(/asr provider aliyun is not implemented yet; use fake or volcengine/);
+  });
+
+  it("throws naming the provider for an unimplemented translation provider, not a blank message", () => {
+    expect(() =>
+      assertConfigUsable(describeConfigHealth(translationUnimplemented())),
+    ).toThrow(
+      /translation provider tencent is not implemented yet; use fake or volcengine/,
+    );
+  });
 });
 
 describe("formatConfigHealth", () => {
   it("names the demo mode in plain text", () => {
     expect(formatConfigHealth(describeConfigHealth(fakeConfig()))).toContain("demo");
+  });
+
+  it("names the provider and suggests alternatives for an unimplemented provider", () => {
+    const text = formatConfigHealth(describeConfigHealth(asrUnimplemented()));
+    expect(text).toContain("aliyun is not implemented yet; use fake or volcengine");
   });
 });
