@@ -40,6 +40,10 @@ docker run --rm -p 127.0.0.1:8787:8787 --env-file .env ghcr.io/ymlyza/echoflow-b
 
 Then install the extension (see below) and open its onboarding wizard.
 
+**Change `ECHOFLOW_API_KEY` in your `.env`.** The shipped `dev-key` is published
+in this repository, so leaving it means every install shares a publicly known
+credential. Any string works — paste the same one into the extension.
+
 Publish the port to `127.0.0.1` explicitly, as above. A bare `-p 8787:8787` binds
 every interface and exposes your backend and its API key to the local network.
 
