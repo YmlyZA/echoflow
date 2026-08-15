@@ -45,6 +45,15 @@ ENV NODE_ENV=production \
     ECHOFLOW_HOST=0.0.0.0 \
     ECHOFLOW_PORT=8787
 
+# Writable home for the optional history-sync SQLite file. /app is root-owned
+# and the container runs as `node`, so `ECHOFLOW_HISTORY_DB=./echoflow-history.db`
+# (what .env.example suggests) resolves to /app/... and makes DatabaseSync throw
+# at server construction — the container exits at boot. Point the setting at
+# /data instead and mount a volume there:
+#   -v echoflow-data:/data -e ECHOFLOW_HISTORY_DB=/data/history.db
+RUN mkdir -p /data && chown node:node /data
+VOLUME /data
+
 USER node
 EXPOSE 8787
 

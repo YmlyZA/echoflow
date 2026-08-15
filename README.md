@@ -51,6 +51,23 @@ Real ASR and translation require Volcengine credentials — see [Provider Config
 
 `PORT` is still accepted by the backend as a compatibility fallback when `ECHOFLOW_PORT` is not set.
 
+#### Optional: history sync
+
+To turn on cross-device history sync (`ECHOFLOW_HISTORY_DB`) in Docker, give the
+container a writable, persistent path. The image creates `/data`, owns it as the
+unprivileged `node` user the container runs as, and declares it a volume:
+
+```bash
+docker run --rm -p 127.0.0.1:8787:8787 --env-file .env \
+  -v echoflow-data:/data -e ECHOFLOW_HISTORY_DB=/data/history.db \
+  ghcr.io/ymlyza/echoflow-backend:latest
+```
+
+A relative path such as `./echoflow-history.db` resolves to `/app` inside the
+image, which is root-owned, and the container exits at boot; without a mounted
+volume, `--rm` discards the database on every run. Running the backend from
+source instead? Then a relative path is fine.
+
 Building the extension or running the backend from source (for development or
 contributing) is covered under [Development](#development).
 
