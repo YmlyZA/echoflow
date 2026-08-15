@@ -157,18 +157,12 @@ function ConnectStep({ view, handlers }: { view: OnboardingView; handlers: Onboa
           <div>
             <b>Connected.</b> {view.connectSummary.detail}
             {view.connectSummary.demo ? (
-              <p
-                className="ef-onboarding-demo-badge"
-                style={{ margin: "6px 0 0", fontSize: "12px", fontWeight: 600, color: "#0a6e60" }}
-              >
+              <p className="ef-onboarding-demo-badge">
                 Demo mode — the backend is serving deterministic sample subtitles.
               </p>
             ) : null}
             {view.connectSummary.blockers.length > 0 ? (
-              <ul
-                className="ef-onboarding-blockers"
-                style={{ margin: "6px 0 0", paddingLeft: "16px", display: "grid", gap: "3px", fontSize: "12px", color: "var(--ef-text-muted)" }}
-              >
+              <ul className="ef-onboarding-blockers">
                 {view.connectSummary.blockers.map((hint) => (
                   <li key={hint}>{hint}</li>
                 ))}
@@ -283,6 +277,9 @@ function OnboardingStyles() {
         display: flex; align-items: center; justify-content: center; }
       .ef-test-ok .ef-test-ic { background: var(--ef-accent); }
       .ef-test-err .ef-test-ic { background: #c4503f; }
+      .ef-onboarding-demo-badge { margin: 6px 0 0; font-size: 12px; font-weight: 600; color: #0a6e60; }
+      .ef-onboarding-blockers { margin: 6px 0 0; padding-left: 16px; display: grid; gap: 3px; font-size: 12px;
+        color: var(--ef-text-muted); }
       .ef-note { font-size: 11.5px; color: var(--ef-text-muted); background: var(--ef-surface);
         border: 1px dashed var(--ef-border); border-radius: ${RADIUS.sm}; padding: 9px 11px; margin: 0; line-height: 1.45; }
       .ef-note b { color: var(--ef-text); }

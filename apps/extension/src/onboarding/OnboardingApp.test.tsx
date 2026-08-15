@@ -86,7 +86,7 @@ describe("OnboardingApp", () => {
       }
     });
     expect(html).not.toContain("Demo mode");
-    expect(html).not.toContain("ef-onboarding-blockers");
+    expect(html).not.toContain('class="ef-onboarding-blockers"');
   });
 
   it("languages (auto-detect mode): shows the Auto-detect label + a target picker", () => {
