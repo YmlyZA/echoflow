@@ -65,7 +65,43 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: docker/build-push-action@v6
+      # Build the runner's own architecture first and actually start it. Nothing
+      # else in this pipeline ever runs the image: the Dockerfile's
+      # `CI=true pnpm prune --prod` + offline reinstall is a workaround for a
+      # pnpm 10 symlink bug, and if a pnpm bump changes that behaviour the
+      # failure is ERR_MODULE_NOT_FOUND at container start — which a build-only
+      # job publishes straight to `latest` with no signal at all. This also
+      # exercises ECHOFLOW_HOST=0.0.0.0 and the published port, neither of which
+      # any unit test can reach.
+      - name: Build the image for this runner
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: echoflow-backend:smoke
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Smoke the image
+        run: |
+          docker run -d --name echoflow-smoke -p 127.0.0.1:8787:8787 echoflow-backend:smoke
+          stop() { docker rm -f echoflow-smoke >/dev/null 2>&1 || true; }
+          for _ in $(seq 1 40); do
+            if curl -sf http://127.0.0.1:8787/healthz; then
+              stop
+              exit 0
+            fi
+            sleep 0.5
+          done
+          echo "container did not become healthy"
+          docker logs echoflow-smoke || true
+          stop
+          exit 1
+
+      # Same context, same cache — the amd64 layers are already warm, so this
+      # only builds arm64 on top.
+      - name: Build and push the multi-arch image
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
