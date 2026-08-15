@@ -29,6 +29,14 @@ export function buildCapabilities(
   const asr = health.find((c) => c.name === "asr");
   const translation = health.find((c) => c.name === "translation");
 
+  // Defensive, and unreachable in a running backend: `assertConfigUsable` aborts
+  // boot on exactly this predicate for every non-`interpret` capability, so a
+  // process that could report one of these four codes has already exited. Keep
+  // the branch — fail-fast at boot is the better behaviour, and this stays
+  // correct if a future capability is made non-fatal — but do not expect a user
+  // to see these codes. What they see instead is a backend that is not there,
+  // which is why the onboarding wizard's unreachable-backend copy points at the
+  // backend logs: the exit reason is named there and nowhere else.
   const pipelineBlockers: CapabilityBlockerCode[] = [];
   if (asr !== undefined && !asr.ready) {
     pipelineBlockers.push(

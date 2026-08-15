@@ -174,7 +174,7 @@ function ConnectStep({ view, handlers }: { view: OnboardingView; handlers: Onboa
         <div className="ef-test ef-test-err" role="status">
           <span className="ef-test-ic">!</span>
           <div>
-            <b>Can not reach the backend.</b> Is it running? Start it with <code>docker run --rm -p 127.0.0.1:8787:8787 --env-file .env ghcr.io/ymlyza/echoflow-backend</code>, then retry.{" "}
+            <b>Cannot reach the backend.</b> Is it running? Start it with <code>docker run --rm -p 127.0.0.1:8787:8787 --env-file .env ghcr.io/ymlyza/echoflow-backend</code>, then retry. If it started and then exited, check its logs: it names any missing credentials.{" "}
             <button className="ef-link" type="button" onClick={handlers.onOpenSetupGuide}>Setup guide →</button>
           </div>
         </div>

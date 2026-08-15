@@ -39,7 +39,10 @@ describe("OnboardingApp", () => {
 
   it("connect (error): shows the fix-it and disables Continue but offers finish-anyway", () => {
     const html = render({ step: "connect", connectState: "error", canContinue: false });
-    expect(html).toContain("reach the backend");
+    expect(html).toContain("Cannot reach the backend");
+    // A backend that exits over a credential typo is indistinguishable from one
+    // that never started, so the copy has to send the user to the logs.
+    expect(html).toContain("check its logs");
     expect(html).toContain("finish anyway");
     expect(html).toContain("disabled");
   });
