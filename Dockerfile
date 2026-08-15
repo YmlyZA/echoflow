@@ -33,6 +33,7 @@ RUN pnpm --filter @echoflow/protocol build \
 # anything is inconsistent).
 
 FROM node:22-alpine AS runtime
+LABEL org.opencontainers.image.source=https://github.com/YmlyZA/echoflow
 WORKDIR /app
 # `pnpm deploy` requires inject-workspace-packages=true, which this workspace
 # does not set (ERR_PNPM_DEPLOY_NONINJECTED_WORKSPACE); the documented
@@ -47,7 +48,10 @@ ENV NODE_ENV=production \
 USER node
 EXPOSE 8787
 
+# Read the port from the environment rather than hardcoding it: ECHOFLOW_PORT is
+# user-overridable, and a `-e ECHOFLOW_PORT=9000` container would otherwise be
+# reported unhealthy forever.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
-  CMD node -e "fetch('http://127.0.0.1:8787/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.ECHOFLOW_PORT||8787)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 CMD ["node", "apps/backend/dist/main.js"]
