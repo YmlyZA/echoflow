@@ -28,3 +28,20 @@ jobs:
       - run: pnpm test
 
       - run: pnpm build
+
+      # A passing tsc is not evidence that the output runs: the compiled backend
+      # was unrunnable for the project's whole life because nothing ever started it.
+      - name: Smoke the built backend
+        run: |
+          node apps/backend/dist/main.js &
+          SERVER_PID=$!
+          for _ in $(seq 1 20); do
+            if curl -sf http://127.0.0.1:8787/healthz; then
+              kill $SERVER_PID
+              exit 0
+            fi
+            sleep 0.5
+          done
+          echo "backend did not become healthy"
+          kill $SERVER_PID || true
+          exit 1
