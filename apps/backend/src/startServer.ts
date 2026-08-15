@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { createConfig, type BackendConfigInput } from "./config.js";
+import { assertConfigUsable, describeConfigHealth, formatConfigHealth } from "./configHealth.js";
 import { createServer } from "./server.js";
 
 /**
@@ -11,6 +12,11 @@ export async function startServer(
   input: BackendConfigInput = {},
 ): Promise<FastifyInstance> {
   const config = createConfig(input);
+
+  const health = describeConfigHealth(config);
+  console.log(formatConfigHealth(health));
+  assertConfigUsable(health);
+
   const server = createServer(config);
 
   await server.listen({ port: config.port, host: config.host });
