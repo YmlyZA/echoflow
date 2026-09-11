@@ -8,9 +8,9 @@ const BLOCKER_COPY: Record<string, string> = {
   interpret_credentials_missing:
     "Interpret mode is not configured. Set VOLCENGINE_AST_API_KEY in the backend environment.",
   asr_provider_unimplemented:
-    "The selected speech recognition provider is not implemented yet. Use fake or volcengine.",
+    "The selected speech recognition provider is not implemented yet. Use fake, volcengine or openai.",
   translation_provider_unimplemented:
-    "The selected translation provider is not implemented yet. Use fake or volcengine.",
+    "The selected translation provider is not implemented yet. Use fake, volcengine or openai.",
 };
 
 export function describeBlocker(code: string): string {
