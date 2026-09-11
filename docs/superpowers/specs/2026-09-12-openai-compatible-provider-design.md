@@ -1,7 +1,7 @@
 # OpenAI-compatible ASR + translation providers — Design
 
 **Date:** 2026-09-12
-**Status:** Draft (design); pending review → implementation plan
+**Status:** Approved 2026-09-12 (open questions resolved below) → `plans/2026-09-12-openai-compatible-provider.md`
 
 ## Goal
 
@@ -231,13 +231,13 @@ gets a one-line pointer to this adapter as the second reference implementation.
 - Streaming translation, glossary/context carry-over between lines.
 - Any change to the extension or the wire protocol.
 
-## Open questions for review
+## Decisions (2026-09-12 review)
 
-1. Default translation model: `gpt-5-nano` (cheapest, quality unverified for
-   zh↔en subtitles) vs `gpt-4o-mini` (3× the price, known-good). Proposal:
-   `gpt-5-nano`, and let the real-session notes in the PR decide.
-2. Should the adapter send `OPENAI_ASR_LANGUAGES` as `languages` hints when the
-   extension's source language is set explicitly? Today the pipeline source is
-   always `auto`, so this is a config-only knob for now.
-3. Whether to expose `prefix_padding_ms` / `threshold`. Proposal: no — defaults
-   until a real session shows a reason.
+1. **Default translation model: `gpt-5-nano`.** The PR's real-session notes
+   record zh↔en subtitle quality; if it is not good enough the default moves to
+   `gpt-4o-mini` as a one-line change.
+2. **Language hints are exposed** as `OPENAI_ASR_LANGUAGES` (comma-separated
+   ISO 639-1) and sent as `audio.input.transcription.languages` when set. The
+   pipeline source language stays `auto`; this is a deployment knob only.
+3. **`prefix_padding_ms` / `threshold` are not exposed.** Server defaults until a
+   real session shows a reason; `OPENAI_ASR_SILENCE_MS` is the only VAD knob.
