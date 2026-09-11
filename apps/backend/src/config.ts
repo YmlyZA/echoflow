@@ -14,6 +14,8 @@ import {
 export type BackendConfig = {
   apiKey: string;
   port: number;
+  /** Listen address. Loopback by default; containers set ECHOFLOW_HOST=0.0.0.0. */
+  host: string;
   providers: ProviderConfig;
   /** Path (or ":memory:") for the history sync store; unset → sync disabled. */
   historyDbPath?: string;
@@ -23,6 +25,7 @@ export type BackendConfigInput = Partial<BackendConfig>;
 
 const DEFAULT_API_KEY = "dev-key";
 const DEFAULT_PORT = 8787;
+const DEFAULT_HOST = "127.0.0.1";
 
 export function createConfig(input: BackendConfigInput = {}): BackendConfig {
   const historyDbPath =
@@ -34,6 +37,7 @@ export function createConfig(input: BackendConfigInput = {}): BackendConfig {
       readPort(process.env.ECHOFLOW_PORT, "ECHOFLOW_PORT") ??
       readPort(process.env.PORT, "PORT") ??
       DEFAULT_PORT,
+    host: input.host ?? readNonEmpty(process.env.ECHOFLOW_HOST) ?? DEFAULT_HOST,
     providers: input.providers ?? readProviderConfig(),
     ...(historyDbPath !== undefined ? { historyDbPath } : {}),
   };

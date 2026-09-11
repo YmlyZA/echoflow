@@ -29,7 +29,7 @@ export function createServer(input: BackendConfigInput = {}): FastifyInstance {
     if (!verifyApiKey(headerKey)) {
       return reply.code(401).send({ error: "Unauthorized" });
     }
-    return buildCapabilities(config.providers, {
+    return buildCapabilities(config, {
       syncAvailable: historyRepository !== undefined,
     });
   });

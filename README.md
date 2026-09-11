@@ -30,30 +30,50 @@ EchoFlow runs a backend server on your own machine using your own ASR and transl
 
 See [`docs/store-listing.md`](docs/store-listing.md) for the prepared Chrome Web Store listing draft (not yet published).
 
-## Setup
-
-Install dependencies:
+## Quick start (Docker)
 
 ```bash
-pnpm install
+curl -O https://raw.githubusercontent.com/YmlyZA/echoflow/main/.env.example
+mv .env.example .env    # edit it to add provider credentials, or leave the fake defaults
+docker run --rm -p 127.0.0.1:8787:8787 --env-file .env ghcr.io/ymlyza/echoflow-backend:latest
 ```
 
-Optional local environment file:
+Then install the extension (see below) and open its onboarding wizard.
 
-```bash
-cp .env.example .env
-```
+**Change `ECHOFLOW_API_KEY` in your `.env`.** The shipped `dev-key` is published
+in this repository, so leaving it means every install shares a publicly known
+credential. Any string works — paste the same one into the extension.
 
-The development defaults are:
+Publish the port to `127.0.0.1` explicitly, as above. A bare `-p 8787:8787` binds
+every interface and exposes your backend and its API key to the local network.
 
-- `ECHOFLOW_API_KEY=dev-key`
-- `ECHOFLOW_PORT=8787`
-- `ECHOFLOW_ASR_PROVIDER=fake`
-- `ECHOFLOW_TRANSLATION_PROVIDER=fake`
+With the `fake` defaults the backend needs no credentials and produces
+deterministic sample subtitles — enough to confirm the whole path works. The
+onboarding wizard shows a demo badge until real credentials are configured.
 
-With these `fake` defaults the backend needs no credentials, so you can reach a full end-to-end demo (deterministic subtitles) out of the box. Real ASR and translation require Volcengine credentials — see [Provider Configuration](#provider-configuration) below; those secrets live only in the backend env file, never in the extension.
+Real ASR and translation require Volcengine credentials — see [Provider Configuration](#provider-configuration) below; those secrets live only in the backend env file, never in the extension.
 
 `PORT` is still accepted by the backend as a compatibility fallback when `ECHOFLOW_PORT` is not set.
+
+#### Optional: history sync
+
+To turn on cross-device history sync (`ECHOFLOW_HISTORY_DB`) in Docker, give the
+container a writable, persistent path. The image creates `/data`, owns it as the
+unprivileged `node` user the container runs as, and declares it a volume:
+
+```bash
+docker run --rm -p 127.0.0.1:8787:8787 --env-file .env \
+  -v echoflow-data:/data -e ECHOFLOW_HISTORY_DB=/data/history.db \
+  ghcr.io/ymlyza/echoflow-backend:latest
+```
+
+A relative path such as `./echoflow-history.db` resolves to `/app` inside the
+image, which is root-owned, and the container exits at boot; without a mounted
+volume, `--rm` discards the database on every run. Running the backend from
+source instead? Then a relative path is fine.
+
+Building the extension or running the backend from source (for development or
+contributing) is covered under [Development](#development).
 
 ### Provider Configuration
 
@@ -93,6 +113,26 @@ VOLCENGINE_ASR_ENDPOINT=wss://openspeech.bytedance.com/api/v3/sauc/bigmodel
 Keep provider credentials only in backend environment files. Do not put provider secrets into the browser extension.
 
 ## Development
+
+Building from source (for contributing, or to run the backend outside a
+container):
+
+```bash
+pnpm install
+```
+
+Optional local environment file:
+
+```bash
+cp .env.example .env
+```
+
+The development defaults are:
+
+- `ECHOFLOW_API_KEY=dev-key`
+- `ECHOFLOW_PORT=8787`
+- `ECHOFLOW_ASR_PROVIDER=fake`
+- `ECHOFLOW_TRANSLATION_PROVIDER=fake`
 
 Start the backend:
 
@@ -138,8 +178,8 @@ Non-developers can skip building the extension:
 
 This is an unpacked build (not a signed `.crx`), matching EchoFlow's self-host
 model. The extension still needs the local backend running — see
-[Setup](#setup) and [Development](#development) to start it (the default `fake`
-providers need no credentials).
+[Quick start (Docker)](#quick-start-docker) or [Development](#development) to
+start it (the default `fake` providers need no credentials).
 
 ## Load the Extension in Chrome
 

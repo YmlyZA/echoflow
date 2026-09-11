@@ -1,0 +1,15 @@
+node_modules
+**/node_modules
+**/dist
+**/.output
+.git
+# Docker matches these against context-relative paths, so a bare `.env` would
+# exclude only the repo-root file. `.gitignore` matches `.env` at ANY depth, so
+# e.g. apps/backend/.env is invisible to git — but `COPY apps/backend
+# apps/backend` would carry it into the builder and `COPY --from=builder /app
+# /app` into the runtime image, which is published to a PUBLIC ghcr package.
+.env
+**/.env
+**/.env.*
+*.log
+docs

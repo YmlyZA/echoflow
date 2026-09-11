@@ -1,5 +1,11 @@
-import type { CapabilitiesDescriptor, LanguageOption } from "@echoflow/protocol";
-import { isInterpretAvailable, type ProviderConfig } from "../providers/providerConfig.js";
+import type {
+  CapabilitiesDescriptor,
+  CapabilityBlockerCode,
+  LanguageOption,
+} from "@echoflow/protocol";
+import type { BackendConfig } from "../config.js";
+import { describeConfigHealth } from "../configHealth.js";
+import { isInterpretAvailable } from "../providers/providerConfig.js";
 import { AST_LANGUAGES } from "../providers/astLanguages.js";
 
 // Pipeline targets are the translation provider's supported output languages.
@@ -16,10 +22,37 @@ export const PIPELINE_TARGET_LANGUAGES: LanguageOption[] = [
 ];
 
 export function buildCapabilities(
-  config: ProviderConfig,
+  config: BackendConfig,
   options: { syncAvailable: boolean },
 ): CapabilitiesDescriptor {
-  const interpretAvailable = isInterpretAvailable(config);
+  const health = describeConfigHealth(config);
+  const asr = health.find((c) => c.name === "asr");
+  const translation = health.find((c) => c.name === "translation");
+
+  // Defensive, and unreachable in a running backend: `assertConfigUsable` aborts
+  // boot on exactly this predicate for every non-`interpret` capability, so a
+  // process that could report one of these four codes has already exited. Keep
+  // the branch — fail-fast at boot is the better behaviour, and this stays
+  // correct if a future capability is made non-fatal — but do not expect a user
+  // to see these codes. What they see instead is a backend that is not there,
+  // which is why the onboarding wizard's unreachable-backend copy points at the
+  // backend logs: the exit reason is named there and nowhere else.
+  const pipelineBlockers: CapabilityBlockerCode[] = [];
+  if (asr !== undefined && !asr.ready) {
+    pipelineBlockers.push(
+      asr.unimplemented ? "asr_provider_unimplemented" : "asr_credentials_missing",
+    );
+  }
+  if (translation !== undefined && !translation.ready) {
+    pipelineBlockers.push(
+      translation.unimplemented
+        ? "translation_provider_unimplemented"
+        : "translation_credentials_missing",
+    );
+  }
+
+  const interpretAvailable = isInterpretAvailable(config.providers);
+
   return {
     modes: {
       pipeline: {
@@ -27,12 +60,17 @@ export function buildCapabilities(
         autoDetect: true,
         languages: PIPELINE_TARGET_LANGUAGES,
         defaultPair: { source: "auto", target: "en" },
+        // Either fake leg means the output is not real, so say so.
+        demo: (asr?.demo ?? false) || (translation?.demo ?? false),
+        blockers: pipelineBlockers,
       },
       interpret: {
         available: interpretAvailable,
         autoDetect: false,
         languages: interpretAvailable ? AST_LANGUAGES : [],
         defaultPair: { source: "en", target: "zh" },
+        demo: false,
+        blockers: interpretAvailable ? [] : ["interpret_credentials_missing"],
       },
     },
     sync: { available: options.syncAvailable },

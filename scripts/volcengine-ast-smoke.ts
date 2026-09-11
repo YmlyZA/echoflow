@@ -2,7 +2,12 @@
 //
 // Usage (from repo root):
 //   VOLCENGINE_AST_API_KEY=... \
-//   pnpm --filter @echoflow/backend exec tsx ../../scripts/volcengine-ast-smoke.ts path/to/audio.pcm [targetLang] [sourceLang]
+//   pnpm --filter @echoflow/backend exec tsx --conditions=echoflow-source \
+//     ../../scripts/volcengine-ast-smoke.ts path/to/audio.pcm [targetLang] [sourceLang]
+//
+// `--conditions=echoflow-source` makes @echoflow/protocol resolve to its
+// TypeScript source; without it tsx takes the package's `default` export
+// condition and needs `pnpm --filter @echoflow/protocol build` to have run.
 //
 // The audio file must be raw 16 kHz / 16-bit / mono little-endian PCM (or a WAV
 // with that format — its 44-byte header is skipped). targetLang defaults to zh-CN,

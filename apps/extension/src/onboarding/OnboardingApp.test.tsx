@@ -39,7 +39,10 @@ describe("OnboardingApp", () => {
 
   it("connect (error): shows the fix-it and disables Continue but offers finish-anyway", () => {
     const html = render({ step: "connect", connectState: "error", canContinue: false });
-    expect(html).toContain("reach the backend");
+    expect(html).toContain("Cannot reach the backend");
+    // A backend that exits over a credential typo is indistinguishable from one
+    // that never started, so the copy has to send the user to the logs.
+    expect(html).toContain("check its logs");
     expect(html).toContain("finish anyway");
     expect(html).toContain("disabled");
   });
@@ -49,10 +52,44 @@ describe("OnboardingApp", () => {
       step: "connect",
       connectState: "ok",
       canContinue: true,
-      connectSummary: { tone: "full", detail: "Free + Interpret available · 20 languages", languageCount: 20 }
+      connectSummary: { tone: "full", detail: "Free + Interpret available · 20 languages", languageCount: 20, demo: false, blockers: [] }
     });
     expect(html).toContain("Connected");
     expect(html).toContain("Interpret available");
+  });
+
+  it("connect (demo): shows the demo badge and the blocker hint", () => {
+    const html = render({
+      step: "connect",
+      connectState: "ok",
+      canContinue: true,
+      connectSummary: {
+        tone: "partial",
+        detail: "Demo mode — deterministic sample subtitles",
+        languageCount: 8,
+        demo: true,
+        blockers: ["Speech recognition is not configured. Set VOLCENGINE_ASR_APP_KEY"]
+      }
+    });
+    expect(html).toContain("Demo mode");
+    expect(html).toContain("VOLCENGINE_ASR_APP_KEY");
+  });
+
+  it("connect (configured): shows no demo badge and no blocker list", () => {
+    const html = render({
+      step: "connect",
+      connectState: "ok",
+      canContinue: true,
+      connectSummary: {
+        tone: "full",
+        detail: "Free + Interpret available · 20 languages",
+        languageCount: 20,
+        demo: false,
+        blockers: []
+      }
+    });
+    expect(html).not.toContain("Demo mode");
+    expect(html).not.toContain('class="ef-onboarding-blockers"');
   });
 
   it("languages (auto-detect mode): shows the Auto-detect label + a target picker", () => {

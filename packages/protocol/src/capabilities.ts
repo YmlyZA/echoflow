@@ -5,11 +5,32 @@ export type LanguageOption = {
   sourceOnly?: boolean;
 };
 
+/**
+ * Why a mode is not fully usable. The backend emits codes; all wording lives in
+ * the extension, so the backend never acquires opinions about UI copy.
+ */
+export const CAPABILITY_BLOCKER_CODES = [
+  "asr_credentials_missing",
+  "translation_credentials_missing",
+  "interpret_credentials_missing",
+  "asr_provider_unimplemented",
+  "translation_provider_unimplemented",
+] as const;
+
+export type CapabilityBlockerCode = (typeof CAPABILITY_BLOCKER_CODES)[number];
+
 export type ModeCapabilities = {
   available: boolean;
   autoDetect: boolean;
   languages: LanguageOption[];
   defaultPair?: { source: string; target: string };
+  /** Served by deterministic fakes. `available` stays true — the demo is a feature. */
+  demo?: boolean;
+  /**
+   * Reason codes. Typed as string[] on the wire on purpose: an unknown code from
+   * a newer backend must not fail validation of the whole descriptor.
+   */
+  blockers?: readonly string[];
 };
 
 export type SyncCapability = {
@@ -51,12 +72,18 @@ function isModeCapabilities(value: unknown): value is ModeCapabilities {
       v.defaultPair !== null &&
       typeof (v.defaultPair as Record<string, unknown>).source === "string" &&
       typeof (v.defaultPair as Record<string, unknown>).target === "string");
+  const demoValid = v.demo === undefined || typeof v.demo === "boolean";
+  const blockersValid =
+    v.blockers === undefined ||
+    (Array.isArray(v.blockers) && v.blockers.every((code) => typeof code === "string"));
   return (
     typeof v.available === "boolean" &&
     typeof v.autoDetect === "boolean" &&
     Array.isArray(v.languages) &&
     v.languages.every(isLanguageOption) &&
-    defaultPairValid
+    defaultPairValid &&
+    demoValid &&
+    blockersValid
   );
 }
 

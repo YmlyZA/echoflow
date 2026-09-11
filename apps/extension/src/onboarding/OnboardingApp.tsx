@@ -154,13 +154,27 @@ function ConnectStep({ view, handlers }: { view: OnboardingView; handlers: Onboa
       {view.connectState === "ok" && view.connectSummary ? (
         <div className="ef-test ef-test-ok" role="status">
           <span className="ef-test-ic">✓</span>
-          <div><b>Connected.</b> {view.connectSummary.detail}</div>
+          <div>
+            <b>Connected.</b> {view.connectSummary.detail}
+            {view.connectSummary.demo ? (
+              <p className="ef-onboarding-demo-badge">
+                Demo mode — the backend is serving deterministic sample subtitles.
+              </p>
+            ) : null}
+            {view.connectSummary.blockers.length > 0 ? (
+              <ul className="ef-onboarding-blockers">
+                {view.connectSummary.blockers.map((hint) => (
+                  <li key={hint}>{hint}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         </div>
       ) : view.connectState === "error" ? (
         <div className="ef-test ef-test-err" role="status">
           <span className="ef-test-ic">!</span>
           <div>
-            <b>Can't reach the backend.</b> Is it running? Start it with <code>pnpm --filter @echoflow/backend dev</code>, then retry.{" "}
+            <b>Cannot reach the backend.</b> Is it running? Start it with <code>docker run --rm -p 127.0.0.1:8787:8787 --env-file .env ghcr.io/ymlyza/echoflow-backend</code>, then retry. If it started and then exited, check its logs: it names any missing credentials.{" "}
             <button className="ef-link" type="button" onClick={handlers.onOpenSetupGuide}>Setup guide →</button>
           </div>
         </div>
@@ -263,6 +277,9 @@ function OnboardingStyles() {
         display: flex; align-items: center; justify-content: center; }
       .ef-test-ok .ef-test-ic { background: var(--ef-accent); }
       .ef-test-err .ef-test-ic { background: #c4503f; }
+      .ef-onboarding-demo-badge { margin: 6px 0 0; font-size: 12px; font-weight: 600; color: #0a6e60; }
+      .ef-onboarding-blockers { margin: 6px 0 0; padding-left: 16px; display: grid; gap: 3px; font-size: 12px;
+        color: var(--ef-text-muted); }
       .ef-note { font-size: 11.5px; color: var(--ef-text-muted); background: var(--ef-surface);
         border: 1px dashed var(--ef-border); border-radius: ${RADIUS.sm}; padding: 9px 11px; margin: 0; line-height: 1.45; }
       .ef-note b { color: var(--ef-text); }
