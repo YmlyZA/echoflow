@@ -42,7 +42,49 @@ const translationUnimplemented = () =>
     providers: { asr: { provider: "fake" }, translation: { provider: "tencent" } },
   });
 
+const openAiNoCreds = () =>
+  createConfig({
+    providers: { asr: { provider: "openai" }, translation: { provider: "openai" } },
+  });
+
+const openAiWithCreds = () =>
+  createConfig({
+    providers: {
+      asr: {
+        provider: "openai",
+        openai: { apiKey: "sk", baseUrl: "https://api.openai.com/v1", model: "m", silenceMs: 600 },
+      },
+      translation: {
+        provider: "openai",
+        openai: { apiKey: "sk", baseUrl: "https://api.openai.com/v1", model: "m" },
+      },
+    },
+  });
+
 describe("describeConfigHealth", () => {
+  it("treats openai as implemented and names OPENAI_API_KEY when a leg is missing", () => {
+    const health = describeConfigHealth(openAiNoCreds());
+    expect(health.find((c) => c.name === "asr")).toMatchObject({
+      provider: "openai",
+      ready: false,
+      demo: false,
+      unimplemented: false,
+      missing: ["OPENAI_API_KEY"],
+    });
+    expect(health.find((c) => c.name === "translation")).toMatchObject({
+      ready: false,
+      unimplemented: false,
+      missing: ["OPENAI_API_KEY"],
+    });
+  });
+
+  it("marks credentialed openai legs ready and not demo", () => {
+    const health = describeConfigHealth(openAiWithCreds());
+    for (const name of ["asr", "translation"] as const) {
+      expect(health.find((c) => c.name === name)).toMatchObject({ ready: true, demo: false, missing: [] });
+    }
+  });
+
   it("marks fake providers ready and demo", () => {
     const asr = describeConfigHealth(fakeConfig()).find((c) => c.name === "asr");
     expect(asr).toMatchObject({ provider: "fake", ready: true, demo: true, missing: [] });
@@ -113,17 +155,23 @@ describe("assertConfigUsable", () => {
     );
   });
 
+  it("throws naming OPENAI_API_KEY for an openai leg without a key", () => {
+    expect(() => assertConfigUsable(describeConfigHealth(openAiNoCreds()))).toThrow(
+      /asr requires OPENAI_API_KEY; translation requires OPENAI_API_KEY/,
+    );
+  });
+
   it("throws naming the provider for an unimplemented asr provider, not a blank message", () => {
     expect(() =>
       assertConfigUsable(describeConfigHealth(asrUnimplemented())),
-    ).toThrow(/asr provider aliyun is not implemented yet; use fake or volcengine/);
+    ).toThrow(/asr provider aliyun is not implemented yet; use fake, volcengine or openai/);
   });
 
   it("throws naming the provider for an unimplemented translation provider, not a blank message", () => {
     expect(() =>
       assertConfigUsable(describeConfigHealth(translationUnimplemented())),
     ).toThrow(
-      /translation provider tencent is not implemented yet; use fake or volcengine/,
+      /translation provider tencent is not implemented yet; use fake, volcengine or openai/,
     );
   });
 });
@@ -135,6 +183,6 @@ describe("formatConfigHealth", () => {
 
   it("names the provider and suggests alternatives for an unimplemented provider", () => {
     const text = formatConfigHealth(describeConfigHealth(asrUnimplemented()));
-    expect(text).toContain("aliyun is not implemented yet; use fake or volcengine");
+    expect(text).toContain("aliyun is not implemented yet; use fake, volcengine or openai");
   });
 });

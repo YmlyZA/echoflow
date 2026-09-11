@@ -27,6 +27,16 @@ describe("provider factories", () => {
     );
   });
 
+  it("throws when openai ASR is selected without a key", () => {
+    expect(() => createSpeechProvider({ provider: "openai" })).toThrow(/OPENAI_API_KEY/);
+  });
+
+  it("throws when openai translation is selected without a key", () => {
+    expect(() => createTranslationProvider({ provider: "openai" })).toThrow(
+      "OPENAI_API_KEY (or OPENAI_TRANSLATION_API_KEY) is required when ECHOFLOW_TRANSLATION_PROVIDER=openai",
+    );
+  });
+
   it("constructs the Volcengine speech provider when configured with credentials", () => {
     const provider = createSpeechProvider({
       provider: "volcengine",

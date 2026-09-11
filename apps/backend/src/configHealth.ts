@@ -28,6 +28,13 @@ export type CapabilityHealth = {
   missing: readonly string[];
 };
 
+const IMPLEMENTED_PROVIDER_NAMES: ReadonlySet<string> = new Set([
+  "fake",
+  "volcengine",
+  "openai",
+]);
+export const IMPLEMENTED_PROVIDER_LIST = "fake, volcengine or openai";
+
 /**
  * Provider names the config layer recognizes but that have no adapter yet.
  * Derived from `providerConfig.ts`'s allowed-name lists so this can never
@@ -37,13 +44,38 @@ export type CapabilityHealth = {
  */
 export const UNIMPLEMENTED_PROVIDER_NAMES: readonly string[] = [
   ...new Set<string>([...ASR_PROVIDER_NAMES, ...TRANSLATION_PROVIDER_NAMES]),
-].filter((name) => name !== "fake" && name !== "volcengine");
+].filter((name) => !IMPLEMENTED_PROVIDER_NAMES.has(name));
 
 const ASR_CREDENTIAL_VARS = [
   "VOLCENGINE_ASR_APP_KEY",
   "VOLCENGINE_ASR_ACCESS_KEY",
 ] as const;
 const TRANSLATION_CREDENTIAL_VARS = ["VOLCENGINE_API_KEY"] as const;
+// The shared key is what a user should set first; the per-leg overrides are
+// documented in .env.example, not in the fail-fast message.
+const OPENAI_CREDENTIAL_VARS = ["OPENAI_API_KEY"] as const;
+
+function missingAsrVars(asr: BackendConfig["providers"]["asr"]): readonly string[] {
+  if (asr.provider === "volcengine" && asr.volcengine === undefined) {
+    return [...ASR_CREDENTIAL_VARS];
+  }
+  if (asr.provider === "openai" && asr.openai === undefined) {
+    return [...OPENAI_CREDENTIAL_VARS];
+  }
+  return [];
+}
+
+function missingTranslationVars(
+  translation: BackendConfig["providers"]["translation"],
+): readonly string[] {
+  if (translation.provider === "volcengine" && translation.volcengine === undefined) {
+    return [...TRANSLATION_CREDENTIAL_VARS];
+  }
+  if (translation.provider === "openai" && translation.openai === undefined) {
+    return [...OPENAI_CREDENTIAL_VARS];
+  }
+  return [];
+}
 const INTERPRET_CREDENTIAL_VARS = ["VOLCENGINE_AST_API_KEY"] as const;
 
 export function describeConfigHealth(
@@ -59,24 +91,22 @@ export function describeConfigHealth(
     {
       name: "asr",
       provider: asr.provider,
-      ready: asr.provider === "fake" || asr.volcengine !== undefined,
+      ready:
+        asr.provider === "fake" || asr.volcengine !== undefined || asr.openai !== undefined,
       demo: asr.provider === "fake",
       unimplemented: asrUnimplemented,
-      missing:
-        asr.provider === "volcengine" && asr.volcengine === undefined
-          ? [...ASR_CREDENTIAL_VARS]
-          : [],
+      missing: missingAsrVars(asr),
     },
     {
       name: "translation",
       provider: translation.provider,
-      ready: translation.provider === "fake" || translation.volcengine !== undefined,
+      ready:
+        translation.provider === "fake" ||
+        translation.volcengine !== undefined ||
+        translation.openai !== undefined,
       demo: translation.provider === "fake",
       unimplemented: translationUnimplemented,
-      missing:
-        translation.provider === "volcengine" && translation.volcengine === undefined
-          ? [...TRANSLATION_CREDENTIAL_VARS]
-          : [],
+      missing: missingTranslationVars(translation),
     },
     {
       name: "interpret",
@@ -93,7 +123,7 @@ export function describeConfigHealth(
 
 function describeUnavailable(capability: CapabilityHealth): string {
   if (capability.unimplemented) {
-    return `${capability.provider} is not implemented yet; use fake or volcengine`;
+    return `${capability.provider} is not implemented yet; use ${IMPLEMENTED_PROVIDER_LIST}`;
   }
   return `unavailable — set ${capability.missing.join(", ")}`;
 }
@@ -130,7 +160,7 @@ export function assertConfigUsable(health: readonly CapabilityHealth[]): void {
   const detail = broken
     .map((capability) =>
       capability.unimplemented
-        ? `${capability.name} provider ${capability.provider} is not implemented yet; use fake or volcengine`
+        ? `${capability.name} provider ${capability.provider} is not implemented yet; use ${IMPLEMENTED_PROVIDER_LIST}`
         : `${capability.name} requires ${capability.missing.join(" and ")}`,
     )
     .join("; ");

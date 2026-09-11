@@ -27,8 +27,18 @@ export function createSpeechProvider(config: AsrProviderConfig): SpeechProvider 
     return new VolcengineSpeechProvider(config.volcengine);
   }
 
+  if (config.provider === "openai") {
+    if (config.openai === undefined || config.openai.apiKey.trim() === "") {
+      throw new Error(
+        "OPENAI_API_KEY (or OPENAI_ASR_API_KEY) is required when ECHOFLOW_ASR_PROVIDER=openai",
+      );
+    }
+    // Adapter lands in plan Task 6.
+    throw new Error("openai ASR adapter is not wired yet");
+  }
+
   throw new Error(
-    `ASR provider ${config.provider} is configured but not implemented yet; use fake or volcengine`,
+    `ASR provider ${config.provider} is configured but not implemented yet; use fake, volcengine or openai`,
   );
 }
 
@@ -49,7 +59,17 @@ export function createTranslationProvider(
     return new VolcengineTranslationProvider(config.volcengine);
   }
 
+  if (config.provider === "openai") {
+    if (config.openai === undefined || config.openai.apiKey.trim() === "") {
+      throw new Error(
+        "OPENAI_API_KEY (or OPENAI_TRANSLATION_API_KEY) is required when ECHOFLOW_TRANSLATION_PROVIDER=openai",
+      );
+    }
+    // Adapter lands in plan Task 7.
+    throw new Error("openai translation adapter is not wired yet");
+  }
+
   throw new Error(
-    `Translation provider ${config.provider} is configured but not implemented yet; use fake or volcengine`,
+    `Translation provider ${config.provider} is configured but not implemented yet; use fake, volcengine or openai`,
   );
 }
