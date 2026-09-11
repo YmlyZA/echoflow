@@ -80,6 +80,24 @@ describe("SubtitleOverlay", () => {
     expect(html).toContain("Speech recognition provider unavailable");
   });
 
+  it("shows a translation-failed pill, not a connection error, in the degraded state", () => {
+    const html = renderToStaticMarkup(
+      <SubtitleOverlay
+        segment={segment}
+        fontSize={24}
+        lifecycle="degraded"
+        mode="pipeline"
+        transientError={{ code: "translation_failed", message: "translator timed out" }}
+      />
+    );
+
+    expect(html).toContain("翻译失败");
+    expect(html).toContain("LIVE");
+    expect(html).not.toContain("连接错误");
+    expect(html).toContain("translator timed out");
+    expect(html).toContain("echoflow-pill-degraded");
+  });
+
   it("renders the restore control when hidden", () => {
     const html = renderToStaticMarkup(
       <SubtitleOverlay segment={segment} fontSize={24} lifecycle="live" mode="pipeline" hidden />

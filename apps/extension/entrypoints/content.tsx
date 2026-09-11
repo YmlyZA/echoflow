@@ -10,7 +10,7 @@ import {
   type VideoTimeSampleMessage
 } from "../src/messaging/messages";
 import { SubtitleOverlay } from "../src/overlay/SubtitleOverlay";
-import { deriveOverlayStatus } from "../src/overlay/overlayStatus";
+import { deriveOverlayStatus, isDegradedErrorCode } from "../src/overlay/overlayStatus";
 import { DEFAULT_SUBTITLE_FONT_SIZE } from "../src/settings/settings";
 import { chooseDisplaySegment } from "../src/subtitles/chooseDisplaySegment";
 import { isStopForCurrentSession } from "../src/subtitles/overlaySession";
@@ -208,9 +208,14 @@ function EchoFlowMount({ onSessionEnded }: { onSessionEnded: () => void }) {
     window.addEventListener("pointerup", handlePointerUp);
   }
 
+  const degraded =
+    subtitleState.transientError !== null &&
+    isDegradedErrorCode(subtitleState.transientError.code);
   const lifecycle = deriveOverlayStatus({
     connectionStatus,
-    hasError: subtitleState.transientError !== null || sessionError !== null,
+    hasError:
+      (subtitleState.transientError !== null && !degraded) || sessionError !== null,
+    hasDegradedError: degraded,
     hasSignal,
     providerReconnecting: subtitleState.providerConnection === "reconnecting"
   });

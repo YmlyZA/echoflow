@@ -398,6 +398,18 @@ async function handleSessionStarted(
 }
 
 async function handleSessionError(message: SessionErrorMessage): Promise<void> {
+  // The captured track ending is how the browser tells the offscreen doc that
+  // the tab closed or navigated — a clean end, not a fault. tabs.onRemoved /
+  // onUpdated normally win the race and have already stopped the session; if
+  // the track report arrives first, finish the stop here. Either way, no
+  // error is written to history.
+  if (message.code === "capture_ended") {
+    if (isMessageForActiveSession(sessionState, message.localSessionId)) {
+      await stopSession("capture_ended");
+    }
+    return;
+  }
+
   // A late error from a session that has since been replaced must not corrupt
   // the current session's state/badge/UI — record its own history and return.
   if (

@@ -5,7 +5,7 @@ import type {
 import type { SubtitleMode } from "@echoflow/protocol";
 import { DARK_THEME, RADIUS, themeStyleSheet } from "../ui/theme";
 import type { OverlayLifecycle } from "./overlayStatus";
-import { modeLabel } from "./overlayStatus";
+import { degradedErrorLabel, modeLabel } from "./overlayStatus";
 import type {
   SubtitleDisplaySegment,
   TransientSubtitleError
@@ -31,7 +31,11 @@ export interface SubtitleOverlayProps {
   onDragStart?: (event: ReactPointerEvent<HTMLButtonElement>) => void;
 }
 
-function pillText(lifecycle: OverlayLifecycle, mode: SubtitleMode): string {
+function pillText(
+  lifecycle: OverlayLifecycle,
+  mode: SubtitleMode,
+  transientError: TransientSubtitleError | null
+): string {
   switch (lifecycle) {
     case "connecting":
       return "连接中…";
@@ -39,6 +43,8 @@ function pillText(lifecycle: OverlayLifecycle, mode: SubtitleMode): string {
       return "重连中…";
     case "error":
       return "连接错误";
+    case "degraded":
+      return `${degradedErrorLabel(transientError?.code ?? "")} · LIVE`;
     case "live":
       return `${modeLabel(mode)} · LIVE`;
   }
@@ -93,7 +99,7 @@ export function SubtitleOverlay({
       >
         <span className={`echoflow-pill echoflow-pill-${lifecycle}`} role="status">
           <span className="echoflow-dot" />
-          {pillText(lifecycle, mode)}
+          {pillText(lifecycle, mode, transientError)}
         </span>
 
         {speaker ? (
@@ -127,6 +133,9 @@ export function SubtitleOverlay({
 
         {lifecycle === "error" && transientError ? (
           <p className="echoflow-error">{transientError.message}</p>
+        ) : null}
+        {lifecycle === "degraded" && transientError ? (
+          <p className="echoflow-error echoflow-error-degraded">{transientError.message}</p>
         ) : null}
 
         <div className="echoflow-controls" aria-label="Subtitle controls">
@@ -251,6 +260,12 @@ function SubtitleOverlayStyles() {
       }
       .echoflow-pill-error { color: #f0a59c; }
 
+      .echoflow-pill-degraded .echoflow-dot {
+        background: #e0a93a;
+        box-shadow: 0 0 6px #e0a93a;
+      }
+      .echoflow-pill-degraded { color: #f0c878; }
+
       .echoflow-lines {
         display: grid;
         align-content: center;
@@ -288,6 +303,11 @@ function SubtitleOverlayStyles() {
         font: 600 12px/1.3 system-ui, sans-serif;
         overflow-wrap: anywhere;
         text-align: center;
+      }
+
+      .echoflow-error-degraded {
+        background: rgba(224, 169, 58, 0.18);
+        color: #f0c878;
       }
 
       .echoflow-controls {
