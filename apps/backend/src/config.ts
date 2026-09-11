@@ -1,4 +1,8 @@
 import {
+  DEFAULT_OPENAI_ASR_MODEL,
+  DEFAULT_OPENAI_ASR_SILENCE_MS,
+  DEFAULT_OPENAI_BASE_URL,
+  DEFAULT_OPENAI_TRANSLATION_MODEL,
   DEFAULT_VOLCENGINE_ASR_ENDPOINT,
   DEFAULT_VOLCENGINE_ASR_RESOURCE_ID,
   DEFAULT_VOLCENGINE_ASR_VAD_MS,
@@ -63,15 +67,49 @@ function readPort(value: string | undefined, name: string): number | undefined {
   return parsed;
 }
 
-function readVadSegmentDurationMs(value: string | undefined): number {
+function readPositiveInt(
+  value: string | undefined,
+  name: string,
+  fallback: number,
+): number {
   if (value === undefined || value.trim() === "") {
-    return DEFAULT_VOLCENGINE_ASR_VAD_MS;
+    return fallback;
   }
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed <= 0) {
-    throw new Error(`Invalid VOLCENGINE_ASR_VAD_MS value: ${value}`);
+    throw new Error(`Invalid ${name} value: ${value}`);
   }
   return parsed;
+}
+
+function readCsv(value: string | undefined): readonly string[] | undefined {
+  const items = (value ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item !== "");
+  return items.length > 0 ? items : undefined;
+}
+
+/**
+ * One OpenAI-compatible leg: `OPENAI_<LEG>_*` overrides the shared `OPENAI_*`
+ * values, so ASR can point at a local Speaches while translation goes to a
+ * hosted LLM. Returns undefined when no API key resolves — configHealth reads
+ * that absence as "credentials missing".
+ */
+function readOpenAiLeg(
+  prefix: "OPENAI_ASR" | "OPENAI_TRANSLATION",
+): { apiKey: string; baseUrl: string } | undefined {
+  const apiKey =
+    readNonEmpty(process.env[`${prefix}_API_KEY`]) ??
+    readNonEmpty(process.env.OPENAI_API_KEY);
+  if (apiKey === undefined) {
+    return undefined;
+  }
+  const baseUrl =
+    readNonEmpty(process.env[`${prefix}_BASE_URL`]) ??
+    readNonEmpty(process.env.OPENAI_BASE_URL) ??
+    DEFAULT_OPENAI_BASE_URL;
+  return { apiKey, baseUrl: baseUrl.replace(/\/+$/, "") };
 }
 
 function readProviderConfig(): ProviderConfig {
@@ -97,8 +135,31 @@ function readProviderConfig(): ProviderConfig {
         process.env.VOLCENGINE_ASR_RESOURCE_ID ?? DEFAULT_VOLCENGINE_ASR_RESOURCE_ID,
       endpoint:
         process.env.VOLCENGINE_ASR_ENDPOINT ?? DEFAULT_VOLCENGINE_ASR_ENDPOINT,
-      vadSegmentDurationMs: readVadSegmentDurationMs(process.env.VOLCENGINE_ASR_VAD_MS),
+      vadSegmentDurationMs: readPositiveInt(
+        process.env.VOLCENGINE_ASR_VAD_MS,
+        "VOLCENGINE_ASR_VAD_MS",
+        DEFAULT_VOLCENGINE_ASR_VAD_MS,
+      ),
     };
+  }
+
+  if (asrProvider === "openai") {
+    const leg = readOpenAiLeg("OPENAI_ASR");
+    if (leg !== undefined) {
+      const prompt = readNonEmpty(process.env.OPENAI_ASR_PROMPT);
+      const languages = readCsv(process.env.OPENAI_ASR_LANGUAGES);
+      config.asr.openai = {
+        ...leg,
+        model: readNonEmpty(process.env.OPENAI_ASR_MODEL) ?? DEFAULT_OPENAI_ASR_MODEL,
+        silenceMs: readPositiveInt(
+          process.env.OPENAI_ASR_SILENCE_MS,
+          "OPENAI_ASR_SILENCE_MS",
+          DEFAULT_OPENAI_ASR_SILENCE_MS,
+        ),
+        ...(prompt !== undefined ? { prompt } : {}),
+        ...(languages !== undefined ? { languages } : {}),
+      };
+    }
   }
 
   if (translationProvider === "volcengine" && process.env.VOLCENGINE_API_KEY) {
@@ -111,6 +172,18 @@ function readProviderConfig(): ProviderConfig {
         process.env.VOLCENGINE_TRANSLATION_RESOURCE_ID ??
         DEFAULT_VOLCENGINE_TRANSLATION_RESOURCE_ID,
     };
+  }
+
+  if (translationProvider === "openai") {
+    const leg = readOpenAiLeg("OPENAI_TRANSLATION");
+    if (leg !== undefined) {
+      config.translation.openai = {
+        ...leg,
+        model:
+          readNonEmpty(process.env.OPENAI_TRANSLATION_MODEL) ??
+          DEFAULT_OPENAI_TRANSLATION_MODEL,
+      };
+    }
   }
 
   if (process.env.VOLCENGINE_AST_API_KEY) {

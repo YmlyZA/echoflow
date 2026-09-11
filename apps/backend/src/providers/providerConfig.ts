@@ -1,7 +1,14 @@
-export const ASR_PROVIDER_NAMES = ["fake", "volcengine", "aliyun", "tencent"] as const;
+export const ASR_PROVIDER_NAMES = [
+  "fake",
+  "volcengine",
+  "openai",
+  "aliyun",
+  "tencent",
+] as const;
 export const TRANSLATION_PROVIDER_NAMES = [
   "fake",
   "volcengine",
+  "openai",
   "aliyun",
   "tencent",
 ] as const;
@@ -23,14 +30,39 @@ export type VolcengineAsrConfig = {
   vadSegmentDurationMs?: number;
 };
 
+/**
+ * OpenAI Realtime transcription, or any server that speaks that protocol
+ * (Speaches, vLLM). `baseUrl` is the REST base (no trailing slash); the
+ * WebSocket URL is derived from it by the adapter.
+ */
+export type OpenAiAsrConfig = {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+  /** server_vad silence_duration_ms */
+  silenceMs: number;
+  prompt?: string;
+  /** ISO 639-1 hints; absent = auto-detect */
+  languages?: readonly string[];
+};
+
+/** Chat Completions — the surface every OpenAI-compatible service clones. */
+export type OpenAiTranslationConfig = {
+  apiKey: string;
+  baseUrl: string;
+  model: string;
+};
+
 export type AsrProviderConfig = {
   provider: AsrProviderName;
   volcengine?: VolcengineAsrConfig;
+  openai?: OpenAiAsrConfig;
 };
 
 export type TranslationProviderConfig = {
   provider: TranslationProviderName;
   volcengine?: VolcengineTranslationConfig;
+  openai?: OpenAiTranslationConfig;
 };
 
 export type VolcengineAstConfig = {
@@ -62,6 +94,11 @@ export const DEFAULT_VOLCENGINE_ASR_VAD_MS = 1000;
 export const DEFAULT_VOLCENGINE_AST_ENDPOINT =
   "wss://openspeech.bytedance.com/api/v4/ast/v2/translate";
 export const DEFAULT_VOLCENGINE_AST_RESOURCE_ID = "volc.service_type.10053";
+
+export const DEFAULT_OPENAI_BASE_URL = "https://api.openai.com/v1";
+export const DEFAULT_OPENAI_ASR_MODEL = "gpt-live-transcribe";
+export const DEFAULT_OPENAI_ASR_SILENCE_MS = 600;
+export const DEFAULT_OPENAI_TRANSLATION_MODEL = "gpt-5-nano";
 
 export function isInterpretAvailable(config: ProviderConfig): boolean {
   return config.interpret !== undefined && config.interpret.apiKey.trim() !== "";

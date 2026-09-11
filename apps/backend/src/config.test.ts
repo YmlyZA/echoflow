@@ -18,6 +18,17 @@ const ORIGINAL_ENV = {
   VOLCENGINE_AST_API_KEY: process.env.VOLCENGINE_AST_API_KEY,
   VOLCENGINE_AST_RESOURCE_ID: process.env.VOLCENGINE_AST_RESOURCE_ID,
   VOLCENGINE_AST_ENDPOINT: process.env.VOLCENGINE_AST_ENDPOINT,
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
+  OPENAI_ASR_API_KEY: process.env.OPENAI_ASR_API_KEY,
+  OPENAI_ASR_BASE_URL: process.env.OPENAI_ASR_BASE_URL,
+  OPENAI_ASR_MODEL: process.env.OPENAI_ASR_MODEL,
+  OPENAI_ASR_SILENCE_MS: process.env.OPENAI_ASR_SILENCE_MS,
+  OPENAI_ASR_PROMPT: process.env.OPENAI_ASR_PROMPT,
+  OPENAI_ASR_LANGUAGES: process.env.OPENAI_ASR_LANGUAGES,
+  OPENAI_TRANSLATION_API_KEY: process.env.OPENAI_TRANSLATION_API_KEY,
+  OPENAI_TRANSLATION_BASE_URL: process.env.OPENAI_TRANSLATION_BASE_URL,
+  OPENAI_TRANSLATION_MODEL: process.env.OPENAI_TRANSLATION_MODEL,
 };
 
 describe("createConfig", () => {
@@ -213,6 +224,113 @@ describe("host", () => {
   });
 });
 
+describe("openai provider", () => {
+  beforeEach(() => {
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.OPENAI_BASE_URL;
+    delete process.env.OPENAI_ASR_API_KEY;
+    delete process.env.OPENAI_ASR_BASE_URL;
+    delete process.env.OPENAI_ASR_MODEL;
+    delete process.env.OPENAI_ASR_SILENCE_MS;
+    delete process.env.OPENAI_ASR_PROMPT;
+    delete process.env.OPENAI_ASR_LANGUAGES;
+    delete process.env.OPENAI_TRANSLATION_API_KEY;
+    delete process.env.OPENAI_TRANSLATION_BASE_URL;
+    delete process.env.OPENAI_TRANSLATION_MODEL;
+  });
+
+  it("reads the asr leg from the shared key and default base url", () => {
+    process.env.ECHOFLOW_ASR_PROVIDER = "openai";
+    process.env.OPENAI_API_KEY = "sk-shared";
+
+    expect(createConfig().providers.asr).toEqual({
+      provider: "openai",
+      openai: {
+        apiKey: "sk-shared",
+        baseUrl: "https://api.openai.com/v1",
+        model: "gpt-live-transcribe",
+        silenceMs: 600,
+      },
+    });
+  });
+
+  it("lets the asr leg override key, base url, model, silence, prompt and languages", () => {
+    process.env.ECHOFLOW_ASR_PROVIDER = "openai";
+    process.env.OPENAI_API_KEY = "sk-shared";
+    process.env.OPENAI_BASE_URL = "https://shared.example/v1";
+    process.env.OPENAI_ASR_API_KEY = "sk-asr";
+    process.env.OPENAI_ASR_BASE_URL = "http://127.0.0.1:8000/v1/";
+    process.env.OPENAI_ASR_MODEL = "Systran/faster-whisper-small";
+    process.env.OPENAI_ASR_SILENCE_MS = "800";
+    process.env.OPENAI_ASR_PROMPT = "EchoFlow, Volcengine";
+    process.env.OPENAI_ASR_LANGUAGES = "en, zh,";
+
+    expect(createConfig().providers.asr.openai).toEqual({
+      apiKey: "sk-asr",
+      baseUrl: "http://127.0.0.1:8000/v1",
+      model: "Systran/faster-whisper-small",
+      silenceMs: 800,
+      prompt: "EchoFlow, Volcengine",
+      languages: ["en", "zh"],
+    });
+  });
+
+  it("falls back to the shared base url for a leg without its own", () => {
+    process.env.ECHOFLOW_TRANSLATION_PROVIDER = "openai";
+    process.env.OPENAI_API_KEY = "sk-shared";
+    process.env.OPENAI_BASE_URL = "https://shared.example/v1/";
+
+    expect(createConfig().providers.translation.openai?.baseUrl).toBe(
+      "https://shared.example/v1",
+    );
+  });
+
+  it("drops the asr leg when no key resolves", () => {
+    process.env.ECHOFLOW_ASR_PROVIDER = "openai";
+    process.env.OPENAI_ASR_MODEL = "whatever";
+
+    expect(createConfig().providers.asr).toEqual({ provider: "openai" });
+  });
+
+  it("reads the translation leg with its own overrides", () => {
+    process.env.ECHOFLOW_TRANSLATION_PROVIDER = "openai";
+    process.env.OPENAI_API_KEY = "sk-shared";
+    process.env.OPENAI_TRANSLATION_BASE_URL = "https://api.groq.com/openai/v1";
+    process.env.OPENAI_TRANSLATION_MODEL = "llama-3.3-70b-versatile";
+
+    expect(createConfig().providers.translation).toEqual({
+      provider: "openai",
+      openai: {
+        apiKey: "sk-shared",
+        baseUrl: "https://api.groq.com/openai/v1",
+        model: "llama-3.3-70b-versatile",
+      },
+    });
+  });
+
+  it("defaults the translation model to gpt-5-nano", () => {
+    process.env.ECHOFLOW_TRANSLATION_PROVIDER = "openai";
+    process.env.OPENAI_TRANSLATION_API_KEY = "sk-t";
+
+    expect(createConfig().providers.translation.openai?.model).toBe("gpt-5-nano");
+  });
+
+  it("ignores openai variables when another provider is selected", () => {
+    process.env.ECHOFLOW_ASR_PROVIDER = "fake";
+    process.env.OPENAI_API_KEY = "sk-shared";
+
+    expect(createConfig().providers.asr).toEqual({ provider: "fake" });
+  });
+
+  it("rejects a non-integer OPENAI_ASR_SILENCE_MS", () => {
+    process.env.ECHOFLOW_ASR_PROVIDER = "openai";
+    process.env.OPENAI_API_KEY = "sk";
+    process.env.OPENAI_ASR_SILENCE_MS = "soon";
+
+    expect(() => createConfig()).toThrow("Invalid OPENAI_ASR_SILENCE_MS value: soon");
+  });
+});
+
 function restoreEnv(name: string, value: string | undefined): void {
   if (value === undefined) {
     delete process.env[name];
@@ -242,4 +360,15 @@ afterEach(() => {
   restoreEnv("VOLCENGINE_AST_API_KEY", ORIGINAL_ENV.VOLCENGINE_AST_API_KEY);
   restoreEnv("VOLCENGINE_AST_RESOURCE_ID", ORIGINAL_ENV.VOLCENGINE_AST_RESOURCE_ID);
   restoreEnv("VOLCENGINE_AST_ENDPOINT", ORIGINAL_ENV.VOLCENGINE_AST_ENDPOINT);
+  restoreEnv("OPENAI_API_KEY", ORIGINAL_ENV.OPENAI_API_KEY);
+  restoreEnv("OPENAI_BASE_URL", ORIGINAL_ENV.OPENAI_BASE_URL);
+  restoreEnv("OPENAI_ASR_API_KEY", ORIGINAL_ENV.OPENAI_ASR_API_KEY);
+  restoreEnv("OPENAI_ASR_BASE_URL", ORIGINAL_ENV.OPENAI_ASR_BASE_URL);
+  restoreEnv("OPENAI_ASR_MODEL", ORIGINAL_ENV.OPENAI_ASR_MODEL);
+  restoreEnv("OPENAI_ASR_SILENCE_MS", ORIGINAL_ENV.OPENAI_ASR_SILENCE_MS);
+  restoreEnv("OPENAI_ASR_PROMPT", ORIGINAL_ENV.OPENAI_ASR_PROMPT);
+  restoreEnv("OPENAI_ASR_LANGUAGES", ORIGINAL_ENV.OPENAI_ASR_LANGUAGES);
+  restoreEnv("OPENAI_TRANSLATION_API_KEY", ORIGINAL_ENV.OPENAI_TRANSLATION_API_KEY);
+  restoreEnv("OPENAI_TRANSLATION_BASE_URL", ORIGINAL_ENV.OPENAI_TRANSLATION_BASE_URL);
+  restoreEnv("OPENAI_TRANSLATION_MODEL", ORIGINAL_ENV.OPENAI_TRANSLATION_MODEL);
 });
