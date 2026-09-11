@@ -7,6 +7,7 @@ import {
 } from "./providerFactory.js";
 import { VolcengineSpeechProvider } from "./volcengineSpeechProvider.js";
 import { VolcengineTranslationProvider } from "./volcengineTranslationProvider.js";
+import { OpenAiTranslationProvider } from "./openAiTranslationProvider.js";
 
 describe("provider factories", () => {
   it("creates fake providers for local development defaults", () => {
@@ -67,6 +68,14 @@ describe("provider factories", () => {
     });
 
     expect(provider).toBeInstanceOf(VolcengineTranslationProvider);
+  });
+
+  it("creates the openai translation provider when a key is present", () => {
+    const provider = createTranslationProvider({
+      provider: "openai",
+      openai: { apiKey: "sk", baseUrl: "https://api.openai.com/v1", model: "gpt-5-nano" },
+    });
+    expect(provider).toBeInstanceOf(OpenAiTranslationProvider);
   });
 
   it("requires Volcengine credentials when selected for translation", () => {

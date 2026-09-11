@@ -7,6 +7,7 @@ import type {
 import type { SpeechProvider, TranslationProvider } from "./types.js";
 import { VolcengineSpeechProvider } from "./volcengineSpeechProvider.js";
 import { VolcengineTranslationProvider } from "./volcengineTranslationProvider.js";
+import { OpenAiTranslationProvider } from "./openAiTranslationProvider.js";
 
 export function createSpeechProvider(config: AsrProviderConfig): SpeechProvider {
   if (config.provider === "fake") {
@@ -65,8 +66,7 @@ export function createTranslationProvider(
         "OPENAI_API_KEY (or OPENAI_TRANSLATION_API_KEY) is required when ECHOFLOW_TRANSLATION_PROVIDER=openai",
       );
     }
-    // Adapter lands in plan Task 7.
-    throw new Error("openai translation adapter is not wired yet");
+    return new OpenAiTranslationProvider(config.openai);
   }
 
   throw new Error(
