@@ -16,7 +16,7 @@ In scope:
 
 Out of scope:
 
-- Additional ASR streaming providers beyond Volcengine (`aliyun`, `tencent`).
+- Provider breadth. First-party lanes are Volcengine and (next) OpenAI-compatible; other vendors are community adapters — see [`docs/providers.md`](docs/providers.md).
 - User accounts, login, server-side history, or sync.
 - Text-to-speech playback.
 - Muting or lowering original tab audio.
@@ -90,6 +90,8 @@ Translation provider names:
 - `fake` - deterministic local provider.
 - `volcengine` - calls the Volcengine machine translation large-model API over HTTPS.
 - `aliyun`, `tencent` - reserved provider options.
+
+Want another vendor? [`docs/providers.md`](docs/providers.md) walks through the adapter contract and the five files an adapter touches.
 
 Volcengine translation environment:
 
