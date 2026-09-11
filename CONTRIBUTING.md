@@ -41,3 +41,8 @@ See `CLAUDE.md` for architecture notes and per-package commands, and
 - Provider secrets live only in backend env files — never in the extension,
   never in committed files. `.env.example` carries structure, no real values.
 - Tests are colocated `*.test.ts(x)`; PRs must pass the `check` CI gate.
+
+## Adding a provider
+
+Speech and translation adapters are the most useful contribution and the one
+only someone with real credentials can maintain. See [`docs/providers.md`](docs/providers.md).
