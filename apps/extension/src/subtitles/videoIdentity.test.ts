@@ -25,6 +25,16 @@ describe("videoIdentity", () => {
     expect(a).not.toBe(videoIdentity("https://vid.example.com/player?id=different"));
   });
 
+  it("keeps a hash route as part of the identity", () => {
+    const a = videoIdentity("https://spa.example.com/app#/video/123?t=30");
+    const b = videoIdentity("https://spa.example.com/app#/video/123");
+    expect(a).toBe(b);
+    expect(a).not.toBe(videoIdentity("https://spa.example.com/app#/video/456"));
+    expect(videoIdentity("https://spa.example.com/app#!/watch/7")).toBe(
+      "https://spa.example.com/app#/watch/7"
+    );
+  });
+
   it("returns the raw string for an unparseable url", () => {
     expect(videoIdentity("not a url")).toBe("not a url");
   });

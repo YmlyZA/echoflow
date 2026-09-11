@@ -212,14 +212,14 @@ export function createHistoryStore(
       const sessions = (await persistence.getSessionsByVideoKey(videoKey))
         .filter((s) => s.id !== excludeSessionId)
         .sort((a, b) => b.startedAt - a.startedAt);
-      const mostRecent = sessions[0];
-      if (mostRecent === undefined) {
-        return [];
+      const merged: HistorySegmentRecord[] = [];
+      for (const session of sessions) {
+        const timed = (await persistence.getSegments(session.id)).filter(
+          (s) => s.videoStartSec !== undefined && s.videoEndSec !== undefined
+        );
+        mergeTimedSegments(merged, timed);
       }
-      const segments = await persistence.getSegments(mostRecent.id);
-      return segments.filter(
-        (s) => s.videoStartSec !== undefined && s.videoEndSec !== undefined
-      );
+      return merged.sort((a, b) => a.videoStartSec! - b.videoStartSec!);
     }
   };
 }
@@ -356,4 +356,26 @@ function cloneSession(session: HistorySessionRecord): HistorySessionRecord {
   }
 
   return clone;
+}
+
+/**
+ * Adds `incoming` segments (from an older session) into `accepted` (newer
+ * sessions, visited newest-first) where they don't overlap an already-accepted
+ * video-time range: the newest capture of any moment wins, older captures only
+ * fill gaps.
+ */
+function mergeTimedSegments(
+  accepted: HistorySegmentRecord[],
+  incoming: readonly HistorySegmentRecord[]
+): void {
+  for (const candidate of incoming) {
+    const overlaps = accepted.some(
+      (s) =>
+        candidate.videoStartSec! < s.videoEndSec! &&
+        s.videoStartSec! < candidate.videoEndSec!
+    );
+    if (!overlaps) {
+      accepted.push(candidate);
+    }
+  }
 }

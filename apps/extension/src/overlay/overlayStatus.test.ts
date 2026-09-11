@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveOverlayStatus, modeLabel } from "./overlayStatus";
+import { degradedErrorLabel, deriveOverlayStatus, isDegradedErrorCode, modeLabel } from "./overlayStatus";
 
 describe("deriveOverlayStatus", () => {
   it("starts in connecting with no signal and no connection status", () => {
@@ -38,6 +38,21 @@ describe("deriveOverlayStatus", () => {
     ).toBe("reconnecting");
   });
 
+  it("reports degraded for a non-fatal hiccup while otherwise live", () => {
+    expect(
+      deriveOverlayStatus({ connectionStatus: "connected", hasError: false, hasDegradedError: true, hasSignal: true, providerReconnecting: false })
+    ).toBe("degraded");
+  });
+
+  it("lets reconnecting and error outrank degraded", () => {
+    expect(
+      deriveOverlayStatus({ connectionStatus: "reconnecting", hasError: false, hasDegradedError: true, hasSignal: true, providerReconnecting: false })
+    ).toBe("reconnecting");
+    expect(
+      deriveOverlayStatus({ connectionStatus: "connected", hasError: true, hasDegradedError: true, hasSignal: true, providerReconnecting: false })
+    ).toBe("error");
+  });
+
   it("lets an error outrank provider reconnecting", () => {
     expect(
       deriveOverlayStatus({ connectionStatus: "connected", hasError: true, hasSignal: true, providerReconnecting: true })
@@ -49,5 +64,19 @@ describe("modeLabel", () => {
   it("maps pipeline to 一致 and interpret to 实时", () => {
     expect(modeLabel("pipeline")).toBe("一致");
     expect(modeLabel("interpret")).toBe("实时");
+  });
+});
+
+describe("isDegradedErrorCode", () => {
+  it("classifies translation and history hiccups as degraded, everything else as an error", () => {
+    expect(isDegradedErrorCode("translation_failed")).toBe(true);
+    expect(isDegradedErrorCode("history_truncated")).toBe(true);
+    expect(isDegradedErrorCode("stt_unavailable")).toBe(false);
+    expect(isDegradedErrorCode("invalid_client_message")).toBe(false);
+  });
+
+  it("labels each degraded code", () => {
+    expect(degradedErrorLabel("translation_failed")).toBe("翻译失败");
+    expect(degradedErrorLabel("history_truncated")).toBe("历史已截断");
   });
 });

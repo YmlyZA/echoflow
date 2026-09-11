@@ -200,7 +200,7 @@ describe("history store", () => {
     expect(json.segments[1]).toMatchObject({ speakerId: "spk-b", speakerNumber: 2 });
   });
 
-  it("returns the most recent prior session's timed segments for a video", async () => {
+  it("returns timed segments from prior sessions for a video", async () => {
     const store = createHistoryStore(createInMemoryHistoryPersistence());
     const older = await store.createLocalSession({ now: () => 1, randomSuffix: () => "a", videoKey: "youtube:X" });
     const newer = await store.createLocalSession({ now: () => 2, randomSuffix: () => "b", videoKey: "youtube:X" });
@@ -211,8 +211,26 @@ describe("history store", () => {
     await store.appendSegment({ sessionId: newer.id, segmentId: "s2", startTimeMs: 0, endTimeMs: 1, sourceLanguage: "en", targetLanguage: "zh-CN", sourceText: "new-untimed", translatedText: "无", status: "final" });
 
     const cached = await store.getSegmentsForVideo("youtube:X", current.id);
-    // most recent prior session is `newer`; only its timed segment is returned
-    expect(cached.map((s) => s.sourceText)).toEqual(["new-timed"]);
+    // timed segments from every prior session, ordered by video time; untimed dropped
+    expect(cached.map((s) => s.sourceText)).toEqual(["old", "new-timed"]);
+  });
+
+  it("merges prior sessions so the newest capture wins where they overlap", async () => {
+    const store = createHistoryStore(createInMemoryHistoryPersistence());
+    const older = await store.createLocalSession({ now: () => 1, randomSuffix: () => "a", videoKey: "youtube:X" });
+    const newer = await store.createLocalSession({ now: () => 2, randomSuffix: () => "b", videoKey: "youtube:X" });
+    const current = await store.createLocalSession({ now: () => 3, randomSuffix: () => "c", videoKey: "youtube:X" });
+    const base = { startTimeMs: 0, endTimeMs: 1, sourceLanguage: "en", targetLanguage: "zh-CN", translatedText: "", status: "final" as const };
+
+    // older covers 0-2, 2-4, 10-12; newer covers 1-3 (overlaps both of older's first two) and 20-22
+    await store.appendSegment({ ...base, sessionId: older.id, segmentId: "s1", sourceText: "old-0", videoStartSec: 0, videoEndSec: 2 });
+    await store.appendSegment({ ...base, sessionId: older.id, segmentId: "s2", sourceText: "old-2", videoStartSec: 2, videoEndSec: 4 });
+    await store.appendSegment({ ...base, sessionId: older.id, segmentId: "s3", sourceText: "old-10", videoStartSec: 10, videoEndSec: 12 });
+    await store.appendSegment({ ...base, sessionId: newer.id, segmentId: "s1", sourceText: "new-1", videoStartSec: 1, videoEndSec: 3 });
+    await store.appendSegment({ ...base, sessionId: newer.id, segmentId: "s2", sourceText: "new-20", videoStartSec: 20, videoEndSec: 22 });
+
+    const cached = await store.getSegmentsForVideo("youtube:X", current.id);
+    expect(cached.map((s) => s.sourceText)).toEqual(["new-1", "old-10", "new-20"]);
   });
 
   it("returns nothing when no prior session matches the video", async () => {

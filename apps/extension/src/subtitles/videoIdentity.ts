@@ -9,10 +9,9 @@ const VOLATILE_PARAMS = new Set([
  * playlist params) for one video share a cache. Best-effort: known providers get
  * a stable id; generic pages normalize to origin+path plus non-volatile query.
  *
- * Known limitation: the URL hash is dropped, so a hash-routed SPA that encodes
- * the video identity only in the fragment (e.g. `#/video/123`) would collapse
- * distinct videos to one key (a false match → wrong cache). Such sites are rare;
- * refine per-provider if one shows up.
+ * The fragment is an in-page anchor (`#notes`) and is dropped — except when it
+ * is a hash route (`#/video/123`, `#!/watch/7`), where it *is* the page identity
+ * and is kept (its own query, if any, gets the same volatile-param filtering).
  */
 export function videoIdentity(url: string): string {
   let parsed: URL;
@@ -27,16 +26,31 @@ export function videoIdentity(url: string): string {
     return `youtube:${youtube}`;
   }
 
+  const search = stableQuery(parsed.searchParams);
+  return `${parsed.origin}${parsed.pathname}${search ? `?${search}` : ""}${hashRoute(parsed.hash)}`;
+}
+
+function stableQuery(source: URLSearchParams): string {
   const params = new URLSearchParams();
-  const keys = [...parsed.searchParams.keys()].sort();
+  const keys = [...source.keys()].sort();
   for (const key of keys) {
     if (VOLATILE_PARAMS.has(key) || key.startsWith("utm_")) {
       continue;
     }
-    params.set(key, parsed.searchParams.get(key) ?? "");
+    params.set(key, source.get(key) ?? "");
   }
-  const search = params.toString();
-  return `${parsed.origin}${parsed.pathname}${search ? `?${search}` : ""}`;
+  return params.toString();
+}
+
+/** `#/path?x=1` or `#!/path` → normalized route; a plain anchor → "". */
+function hashRoute(hash: string): string {
+  const match = /^#!?(\/.*)$/.exec(hash);
+  if (match === null) {
+    return "";
+  }
+  const [routePath, routeQuery = ""] = match[1].split("?", 2) as [string, string?];
+  const search = stableQuery(new URLSearchParams(routeQuery));
+  return `#${routePath}${search ? `?${search}` : ""}`;
 }
 
 function youtubeId(parsed: URL): string | undefined {
